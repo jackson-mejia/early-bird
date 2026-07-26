@@ -22,6 +22,13 @@ It prints a URL like `https://early-bird-sync.<your-subdomain>.workers.dev`. Put
 `SYNC_BASE` at the top of the sync block in `../index.html`, commit, and push. Until `SYNC_BASE` is
 set the app says sync is not configured rather than half-working.
 
+Currently deployed at `https://early-bird-sync.cheezburgers.workers.dev`, against KV namespace
+`68730625f42544b2b6a6f567f64da2e9`.
+
+A freshly registered `workers.dev` subdomain resolves before its TLS certificate is issued, so the
+first few minutes of requests fail the handshake rather than returning an error status. That is
+expected and clears on its own.
+
 ## API
 
 | Route | Method | Purpose |

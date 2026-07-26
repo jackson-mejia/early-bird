@@ -6,4 +6,4 @@ compatibility_date = "2026-07-26"
 #   npx wrangler kv namespace create SYNC
 [[kv_namespaces]]
 binding = "SYNC"
-id = "PASTE_KV_NAMESPACE_ID_HERE"
+id = "68730625f42544b2b6a6f567f64da2e9"

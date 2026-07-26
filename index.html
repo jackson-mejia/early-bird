@@ -668,7 +668,7 @@ document.getElementById('resetBtn').addEventListener('click', () => {
 const SYNC_KEY = 'early-bird-sync';
 // The deployed Worker URL, e.g. https://early-bird-sync.<subdomain>.workers.dev
 // See worker/README.md. Left empty, the sync card says so rather than half-working.
-const SYNC_BASE = '';
+const SYNC_BASE = 'https://early-bird-sync.cheezburgers.workers.dev';
 let sync = { code: null, updatedAt: null, deleted: {} };
 let pushTimer = null;
 
