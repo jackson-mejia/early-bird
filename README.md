@@ -52,6 +52,29 @@ the first entry to today and derives all points and the streak fresh on each ren
 makes editing an old entry correctly update everything after it. Do not cache scored values
 without handling invalidation.
 
+## Sync
+
+Optional and off until someone turns it on. "Turn on sync" creates a remote copy and hands back a
+sync code; opening the same page on another device with that code (or with the copied
+`#sync=<code>` link) joins it to the same history.
+
+`localStorage` remains the source of truth. The remote copy is a mirror that is pulled on load and
+pushed after each save, so a dead network or a dead service costs the syncing and never the data.
+Sync bookkeeping lives under its own `early-bird-sync` key, which leaves `DATA_KEY` and the backup
+file exactly the shape they have always had.
+
+Merging takes the union of both sides, so a day logged on either device survives, and a same-day
+conflict goes to whichever side wrote last. Deletions are recorded as tombstones and travel with
+the payload, otherwise a deleted day would reappear on the next pull. A tombstone loses to the
+newer side still having that day logged, which is what re-logging a deleted day looks like.
+
+Anyone holding the code can read and change the log. That is the accepted trade for having no
+accounts and no passwords.
+
+The storage provider is two lines — `SYNC_BASE` and the three `fetch` calls that use it. Swapping
+providers means changing that constant and, if the new one does not hand back an id in a
+`Location` header, the one line in `syncCreate()` that reads it.
+
 ## Gotchas
 
 - `localStorage` throws in Safari Private Browsing. `save()` catches it and alerts. Keep that handler.

@@ -125,6 +125,17 @@
   .score-eg b { font-family: 'JetBrains Mono', monospace; color: var(--gold); font-weight: 700; }
   .edit-math { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: rgba(246,242,233,0.6); margin: -4px 0 12px; }
 
+  .sync-or { text-align: center; font-size: 12px; color: rgba(246,242,233,0.4); margin: 14px 0 10px; }
+  .sync-join { display: flex; gap: 8px; }
+  .sync-join input { flex: 1; min-width: 0; font-size: 16px; }
+  .sync-join button { flex: 0 0 auto; }
+  .sync-code-row { background: var(--ink); border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; }
+  .sync-code-row .cap { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: rgba(246,242,233,0.45); margin-bottom: 6px; }
+  .sync-code-row code { font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--gold); word-break: break-all; line-height: 1.5; }
+  .sync-actions { display: flex; gap: 8px; }
+  .sync-actions button { flex: 1; }
+  .sync-status { font-size: 12px; color: rgba(246,242,233,0.45); margin-top: 12px; line-height: 1.5; min-height: 1em; }
+
   .top-actions { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
   .backup-row { display: flex; gap: 8px; margin-top: 12px; }
   .backup-row button { flex: 1; }
@@ -239,6 +250,15 @@
       </div>
     </div>
   </details>
+
+  <div class="card">
+    <h2>Sync across devices</h2>
+    <div class="subhead">Optional. A sync code keeps the same history on your phone and any other
+    browser you open this in. Anyone who has the code can read and change the log, so share it
+    like a password.</div>
+    <div id="syncBody"></div>
+    <div class="sync-status" id="syncStatus"></div>
+  </div>
 
   <div class="card">
     <h2>Backup</h2>
@@ -361,6 +381,7 @@ function save() {
   } catch (e) {
     alert('Could not save. If you are in Private Browsing, switch to a normal tab — private mode blocks saving.');
   }
+  syncPushSoon();   // best-effort mirror; the local write above is what counts
 }
 
 function fmtDateShort(dateStr) {
@@ -502,6 +523,7 @@ function renderHistory(calc) {
       document.getElementById('editDeleteBtn').addEventListener('click', (ev) => {
         ev.stopPropagation();
         if (!confirm('Delete ' + fmtDateShort(editingDate) + '? Points and streak will recalculate without it.')) return;
+        tombstone(editingDate);
         delete state.entries[editingDate];
         editingDate = null;
         save(); render();
@@ -589,12 +611,185 @@ document.getElementById('importFile').addEventListener('change', (e) => {
 
 document.getElementById('resetBtn').addEventListener('click', () => {
   if (!confirm('Reset all logged entries and milestone progress? This cannot be undone.')) return;
+  Object.keys(state.entries).forEach(tombstone);   // otherwise the next sync pulls it all back
   state = { entries: {}, rewards: JSON.parse(JSON.stringify(DEFAULT_REWARDS)) };
   editingDate = null;
   save(); render();
 });
 
+// ---- Sync ------------------------------------------------------------------
+// Off until a code exists. localStorage stays the source of truth and the
+// remote copy is only a mirror, so a dead network or a dead service costs the
+// syncing, never the data. Sync bookkeeping lives under its own key, which
+// leaves DATA_KEY and the backup file exactly the shape they have always had.
+const SYNC_KEY = 'early-bird-sync';
+const SYNC_BASE = 'https://jsonblob.com/api/jsonBlob';
+let sync = { code: null, updatedAt: null, deleted: {} };
+let pushTimer = null;
+
+function loadSync() {
+  try {
+    const raw = localStorage.getItem(SYNC_KEY);
+    if (raw) {
+      const p = JSON.parse(raw);
+      sync = { code: p.code || null, updatedAt: p.updatedAt || null, deleted: p.deleted || {} };
+    }
+  } catch (e) { /* sync stays off */ }
+}
+function saveSync() {
+  try { localStorage.setItem(SYNC_KEY, JSON.stringify(sync)); } catch (e) { /* see save() */ }
+}
+function stamp() { return new Date().toISOString(); }
+function syncStatus(msg) { document.getElementById('syncStatus').textContent = msg || ''; }
+function tombstone(date) { sync.deleted[date] = stamp(); saveSync(); }
+function payload() {
+  return JSON.stringify({ entries: state.entries, rewards: state.rewards, deleted: sync.deleted, updatedAt: sync.updatedAt });
+}
+
+// Union both sides so a day logged on either device survives, then apply the
+// tombstones so a deleted day does not come back. A tombstone loses to the
+// newer side still having that day logged, which is what re-logging looks like.
+function mergeRemote(remote) {
+  const mine = { entries: state.entries, rewards: state.rewards, deleted: sync.deleted };
+  const remoteNewer = (remote.updatedAt || '') > (sync.updatedAt || '');
+  const newer = remoteNewer ? remote : mine;
+  const older = remoteNewer ? mine : remote;
+
+  const entries = Object.assign({}, older.entries || {}, newer.entries || {});
+  const deleted = Object.assign({}, older.deleted || {}, newer.deleted || {});
+  Object.keys(deleted).forEach(d => {
+    if (newer.entries && newer.entries[d]) delete deleted[d];
+    else delete entries[d];
+  });
+
+  state.entries = entries;
+  if (newer.rewards && newer.rewards.length) state.rewards = newer.rewards;
+  sync.deleted = deleted;
+  if (remoteNewer) sync.updatedAt = remote.updatedAt;
+}
+
+async function syncPull() {
+  if (!sync.code) return;
+  syncStatus('Checking for changes…');
+  try {
+    const res = await fetch(SYNC_BASE + '/' + encodeURIComponent(sync.code), { headers: { 'Accept': 'application/json' } });
+    if (!res.ok) throw new Error('http ' + res.status);
+    const remote = await res.json();
+    if (remote && remote.entries) {
+      mergeRemote(remote);
+      saveSync();
+      save();
+      render();
+    }
+    syncStatus('Up to date.');
+  } catch (e) {
+    syncStatus('Could not reach sync. This device’s copy is being used and nothing was lost.');
+  }
+}
+
+async function syncPush() {
+  if (!sync.code) return;
+  sync.updatedAt = stamp();
+  saveSync();
+  try {
+    const res = await fetch(SYNC_BASE + '/' + encodeURIComponent(sync.code), {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: payload()
+    });
+    if (!res.ok) throw new Error('http ' + res.status);
+    syncStatus('Synced.');
+  } catch (e) {
+    syncStatus('Saved on this device. Sync will retry next time this page opens.');
+  }
+}
+function syncPushSoon() {
+  if (!sync.code) return;
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(syncPush, 800);
+}
+
+async function syncCreate() {
+  syncStatus('Setting up…');
+  sync.updatedAt = stamp();
+  try {
+    const res = await fetch(SYNC_BASE, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload() });
+    if (!res.ok) throw new Error('http ' + res.status);
+    const id = (res.headers.get('Location') || '').split('/').pop();
+    if (!id) throw new Error('no location header');
+    sync.code = id;
+    saveSync();
+    renderSync();
+    syncStatus('Sync is on. Copy the link and open it on the other device.');
+  } catch (e) {
+    syncStatus('Could not set up sync. Nothing changed here — you can try again, or paste a code below.');
+  }
+}
+
+function syncJoin(code) {
+  const clean = (code || '').trim().replace(/^.*#sync=/, '');
+  if (!clean) { syncStatus('Paste a sync code first.'); return; }
+  sync.code = clean;
+  sync.updatedAt = null;      // force the remote copy to be treated as newer on the first pull
+  saveSync();
+  renderSync();
+  syncPull();
+}
+
+function syncLink() {
+  return location.origin + location.pathname + '#sync=' + sync.code;
+}
+
+function renderSync() {
+  const body = document.getElementById('syncBody');
+  if (!sync.code) {
+    body.innerHTML =
+      '<button class="btn-primary" id="syncCreateBtn">Turn on sync</button>' +
+      '<div class="sync-or">or join a code from another device</div>' +
+      '<div class="sync-join"><input type="text" id="syncCodeInput" placeholder="paste sync code" autocapitalize="off" autocorrect="off" spellcheck="false"><button class="btn-ghost" id="syncJoinBtn">Join</button></div>';
+    document.getElementById('syncCreateBtn').addEventListener('click', syncCreate);
+    document.getElementById('syncJoinBtn').addEventListener('click', () => syncJoin(document.getElementById('syncCodeInput').value));
+    return;
+  }
+  body.innerHTML =
+    '<div class="sync-code-row"><span class="cap">Sync code</span><code>' + escapeHtml(sync.code) + '</code></div>' +
+    '<div class="sync-actions">' +
+      '<button class="btn-ghost" id="syncCopyBtn">Copy link</button>' +
+      '<button class="btn-ghost" id="syncNowBtn">Sync now</button>' +
+      '<button class="btn-ghost" id="syncOffBtn">Turn off</button>' +
+    '</div>';
+  document.getElementById('syncCopyBtn').addEventListener('click', () => {
+    const link = syncLink();
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(link).then(() => syncStatus('Link copied. Open it on the other device.'),
+        () => prompt('Copy this link:', link));
+    } else {
+      prompt('Copy this link:', link);
+    }
+  });
+  document.getElementById('syncNowBtn').addEventListener('click', syncPull);
+  document.getElementById('syncOffBtn').addEventListener('click', () => {
+    if (!confirm('Turn off sync on this device? Everything logged here stays here.')) return;
+    sync = { code: null, updatedAt: null, deleted: {} };
+    saveSync();
+    renderSync();
+    syncStatus('Sync is off.');
+  });
+}
+
+function initSync() {
+  loadSync();
+  const hash = (location.hash || '').match(/#sync=(.+)$/);
+  if (hash && hash[1] && hash[1] !== sync.code) {
+    if (confirm('Connect this browser to the sync code in that link? Anything already logged here will be merged in, not replaced.')) {
+      syncJoin(hash[1]);
+    }
+    history.replaceState(null, '', location.pathname);
+  }
+  renderSync();
+  if (sync.code) syncPull();
+}
+
 load();
+initSync();
 </script>
 </body>
 </html>
