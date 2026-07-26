@@ -1,0 +1,9 @@
+name = "early-bird-sync"
+main = "src/worker.js"
+compatibility_date = "2026-07-26"
+
+# Create the namespace, then paste its id here:
+#   npx wrangler kv namespace create SYNC
+[[kv_namespaces]]
+binding = "SYNC"
+id = "PASTE_KV_NAMESPACE_ID_HERE"

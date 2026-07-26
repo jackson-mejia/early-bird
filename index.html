@@ -666,7 +666,9 @@ document.getElementById('resetBtn').addEventListener('click', () => {
 // syncing, never the data. Sync bookkeeping lives under its own key, which
 // leaves DATA_KEY and the backup file exactly the shape they have always had.
 const SYNC_KEY = 'early-bird-sync';
-const SYNC_BASE = 'https://jsonblob.com/api/jsonBlob';
+// The deployed Worker URL, e.g. https://early-bird-sync.<subdomain>.workers.dev
+// See worker/README.md. Left empty, the sync card says so rather than half-working.
+const SYNC_BASE = '';
 let sync = { code: null, updatedAt: null, deleted: {} };
 let pushTimer = null;
 
@@ -712,12 +714,12 @@ function mergeRemote(remote) {
 }
 
 async function syncPull() {
-  if (!sync.code) return;
+  if (!SYNC_BASE || !sync.code) return;
   syncStatus('Checking for changes…');
   try {
-    const res = await fetch(SYNC_BASE + '/' + encodeURIComponent(sync.code), { headers: { 'Accept': 'application/json' } });
+    const res = await fetch(SYNC_BASE + '/b/' + encodeURIComponent(sync.code), { headers: { 'Accept': 'application/json' } });
     if (res.status === 404) {
-      syncStatus('This sync code has expired, so the two devices are no longer talking. Everything logged on this device is safe. Turn sync off and on again for a new code, then open the new link on the other device.');
+      syncStatus('That sync code was not recognised. Check it was typed exactly as shown on the other device. Everything logged here is safe either way.');
       return;
     }
     if (!res.ok) throw new Error('http ' + res.status);
@@ -729,20 +731,23 @@ async function syncPull() {
       render();
     }
     syncStatus('Up to date.');
-    syncPushSoon();   // the shared copy expires 24h after its last write, so opening the app renews it
   } catch (e) {
     syncStatus('Could not reach sync. This device’s copy is being used and nothing was lost.');
   }
 }
 
 async function syncPush() {
-  if (!sync.code) return;
+  if (!SYNC_BASE || !sync.code) return;
   sync.updatedAt = stamp();
   saveSync();
   try {
-    const res = await fetch(SYNC_BASE + '/' + encodeURIComponent(sync.code), {
+    const res = await fetch(SYNC_BASE + '/b/' + encodeURIComponent(sync.code), {
       method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: payload()
     });
+    if (res.status === 404) {
+      syncStatus('That sync code was not recognised, so nothing is being shared. Everything logged here is safe. Check the code, or turn sync off and on again for a new one.');
+      return;
+    }
     if (!res.ok) throw new Error('http ' + res.status);
     syncStatus('Synced.');
   } catch (e) {
@@ -750,7 +755,7 @@ async function syncPush() {
   }
 }
 function syncPushSoon() {
-  if (!sync.code) return;
+  if (!SYNC_BASE || !sync.code) return;
   clearTimeout(pushTimer);
   pushTimer = setTimeout(syncPush, 800);
 }
@@ -759,11 +764,11 @@ async function syncCreate() {
   syncStatus('Setting up…');
   sync.updatedAt = stamp();
   try {
-    const res = await fetch(SYNC_BASE, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload() });
+    const res = await fetch(SYNC_BASE + '/new', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload() });
     if (!res.ok) throw new Error('http ' + res.status);
-    const id = (res.headers.get('Location') || '').split('/').pop();
-    if (!id) throw new Error('no location header');
-    sync.code = id;
+    const created = await res.json();
+    if (!created || !created.code) throw new Error('no code returned');
+    sync.code = created.code;
     saveSync();
     renderSync();
     syncStatus('Sync is on. Copy the link and open it on the other device.');
@@ -773,7 +778,7 @@ async function syncCreate() {
 }
 
 function syncJoin(code) {
-  const clean = (code || '').trim().replace(/^.*#sync=/, '');
+  const clean = (code || '').trim().toLowerCase().replace(/^.*#sync=/, '');
   if (!clean) { syncStatus('Paste a sync code first.'); return; }
   sync.code = clean;
   sync.updatedAt = null;      // force the remote copy to be treated as newer on the first pull
@@ -788,6 +793,10 @@ function syncLink() {
 
 function renderSync() {
   const body = document.getElementById('syncBody');
+  if (!SYNC_BASE) {
+    body.innerHTML = '<div class="empty">Sync is not set up yet. Everything logged here is saved on this device.</div>';
+    return;
+  }
   if (!sync.code) {
     body.innerHTML =
       '<button class="btn-primary" id="syncCreateBtn">Turn on sync</button>' +
@@ -825,6 +834,7 @@ function renderSync() {
 
 function initSync() {
   loadSync();
+  if (!SYNC_BASE) { renderSync(); return; }
   const hash = (location.hash || '').match(/#sync=(.+)$/);
   if (hash && hash[1] && hash[1] !== sync.code) {
     if (confirm('Connect this browser to the sync code in that link? Anything already logged here will be merged in, not replaced.')) {
