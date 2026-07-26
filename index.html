@@ -102,7 +102,29 @@
   .edit-actions button { flex: 1; }
 
   .empty { color: rgba(246,242,233,0.4); font-size: 13px; text-align: center; padding: 10px 0; }
-  .foot-note { font-size: 12px; color: rgba(246,242,233,0.4); text-align: center; margin-top: 6px; line-height: 1.6; }
+
+  details.card { padding: 0; }
+  details.card summary {
+    list-style: none; cursor: pointer; padding: 20px;
+    display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    font-family: 'Fraunces', serif; font-size: 19px; font-weight: 600;
+  }
+  details.card summary::-webkit-details-marker { display: none; }
+  details.card summary::after { content: '+'; font-family: 'JetBrains Mono', monospace; font-size: 20px; color: var(--gold); }
+  details.card[open] summary::after { content: '\2212'; }
+  details.card[open] summary { padding-bottom: 4px; }
+  .score-body { padding: 0 20px 20px; }
+  .score-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 4px; }
+  .score-table td { padding: 7px 0; border-bottom: 1px solid var(--line); color: rgba(246,242,233,0.8); }
+  .score-table tr:last-child td { border-bottom: none; }
+  .score-table td:last-child { text-align: right; font-family: 'JetBrains Mono', monospace; color: var(--gold); font-weight: 700; }
+  .score-sec { margin-top: 18px; }
+  .score-sec h3 { font-family: 'Work Sans', sans-serif; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: rgba(246,242,233,0.55); margin: 0 0 7px; }
+  .score-sec p { margin: 0; font-size: 13px; line-height: 1.55; color: rgba(246,242,233,0.8); }
+  .score-eg { background: var(--ink); border-radius: 10px; padding: 12px 14px; margin-top: 18px; font-size: 12.5px; line-height: 1.6; color: rgba(246,242,233,0.7); }
+  .score-eg b { font-family: 'JetBrains Mono', monospace; color: var(--gold); font-weight: 700; }
+  .edit-math { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: rgba(246,242,233,0.6); margin: -4px 0 12px; }
+
   .top-actions { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
   .backup-row { display: flex; gap: 8px; margin-top: 12px; }
   .backup-row button { flex: 1; }
@@ -169,6 +191,55 @@
     <div id="histList"><div class="empty">Nothing logged yet — your first entry starts the streak.</div></div>
   </div>
 
+  <details class="card">
+    <summary>How points work</summary>
+    <div class="score-body">
+      <div class="score-sec" style="margin-top:0;">
+        <h3>Wake points</h3>
+        <p>Baseline is 9:00. Every 30 minutes earlier is worth one more point, up to five.</p>
+        <table class="score-table">
+          <tr><td>Before 6:30</td><td>5</td></tr>
+          <tr><td>6:30 – 7:00</td><td>4</td></tr>
+          <tr><td>7:00 – 7:30</td><td>3</td></tr>
+          <tr><td>7:30 – 8:00</td><td>2</td></tr>
+          <tr><td>8:00 – 8:30</td><td>1</td></tr>
+          <tr><td>8:30 onward</td><td>0</td></tr>
+        </table>
+      </div>
+
+      <div class="score-sec">
+        <h3>Study bonus</h3>
+        <p>A flat +3 for 30 minutes or more. It does not scale with the streak and does not depend
+        on the wake time — studying and waking early count separately.</p>
+      </div>
+
+      <div class="score-sec">
+        <h3>Streak multiplier</h3>
+        <p>Multiplies the wake points only, never the study bonus. Days 1–2 count at 1x, days 3–6
+        at 1.25x, and day 7 onward at 1.5x.</p>
+      </div>
+
+      <div class="score-sec">
+        <h3>Keeping the streak</h3>
+        <p>Every logged day moves it up one. A missed weekday softens it back one tier rather than
+        wiping it — a 7-day streak becomes 4, a 3-to-6-day streak becomes 1. Weekends are free:
+        logging one extends the streak, skipping one costs nothing.</p>
+      </div>
+
+      <div class="score-eg">
+        Waking at <b>6:45</b> on the fourth day of a streak, with 40 minutes of study:
+        4 wake points &times; 1.25 = <b>5</b>, plus <b>3</b> for the study, so <b>8 points</b> that day.
+      </div>
+
+      <div class="score-sec">
+        <h3>Corrections</h3>
+        <p>Nothing is scored once and stored. Every point on this page is recalculated from the
+        logged times each time it loads, so fixing a wrong entry from last week updates the streak
+        and every day after it.</p>
+      </div>
+    </div>
+  </details>
+
   <div class="card">
     <h2>Backup</h2>
     <div class="subhead">Data lives in this browser only. Save a backup file now and then so a cleared browser or a new phone doesn't lose the streak.</div>
@@ -180,7 +251,6 @@
     <div class="top-actions" style="margin-top:14px;"><button class="btn-ghost" id="resetBtn">Reset all data</button></div>
   </div>
 
-  <div class="foot-note" id="footNote"></div>
 </div>
 
 <script>
@@ -245,7 +315,7 @@ function tierMultiplier(streak) {
 // updates that day AND every day after it.
 function recompute() {
   const dates = Object.keys(state.entries).sort();
-  const result = { points: {}, streak: 0, total: 0 };
+  const result = { points: {}, detail: {}, streak: 0, total: 0 };
   if (dates.length === 0) return result;
 
   const endDate = todayStr() > dates[dates.length-1] ? todayStr() : dates[dates.length-1];
@@ -257,8 +327,12 @@ function recompute() {
     if (entry) {
       streak++;
       const mult = tierMultiplier(streak);
-      const pts = Math.round(wakePoints(entry.wake) * mult) + (entry.studyMin >= 30 ? 3 : 0);
+      const wakePts = wakePoints(entry.wake);
+      const scaled = Math.round(wakePts * mult);
+      const studyBonus = entry.studyMin >= 30 ? 3 : 0;
+      const pts = scaled + studyBonus;
       result.points[cursor] = pts;
+      result.detail[cursor] = { wakePts, mult, scaled, studyBonus, streak };
       result.total += pts;
     } else if (!isWeekend(cursor)) {
       streak = dropOneTier(streak);
@@ -298,6 +372,15 @@ function fmtTime(t) {
   const period = h >= 12 ? 'PM' : 'AM';
   let hh = h % 12; if (hh === 0) hh = 12;
   return hh + ':' + String(m).padStart(2,'0') + ' ' + period;
+}
+
+// Shows the arithmetic behind a single day's score, built from the same
+// recomputed values the day is scored with.
+function scoreLine(dt) {
+  let s = dt.wakePts + ' wake';
+  if (dt.mult > 1) s += ' × ' + dt.mult + ' (day ' + dt.streak + ') = ' + dt.scaled;
+  if (dt.studyBonus) s += ', +' + dt.studyBonus + ' study';
+  return s + ' → ' + (dt.scaled + dt.studyBonus) + ' pts';
 }
 
 function drawDial(timeStr) {
@@ -377,6 +460,7 @@ function renderHistory(calc) {
     if (editingDate === d) {
       html += '<div class="edit-panel">' +
         '<div class="edit-head">Editing ' + fmtDateShort(d) + '</div>' +
+        (calc.detail[d] ? '<div class="edit-math">' + scoreLine(calc.detail[d]) + '</div>' : '') +
         '<div class="row2">' +
           '<div class="field"><label>Wake time</label><input type="time" id="editWake" value="' + (e.wake || '') + '"></div>' +
           '<div class="field"><label>Study minutes</label><input type="number" id="editStudy" min="0" value="' + (e.studyMin || 0) + '"></div>' +
@@ -458,12 +542,6 @@ function render() {
 
   renderRewards(calc.total);
   renderHistory(calc);
-
-  document.getElementById('footNote').textContent =
-    'Wake points: before 6:30 = 5, then down one point every 30 min to 0 at 9:00. ' +
-    'Study adds a flat +3 at 30+ min, independent of wake time and streak. ' +
-    'Weekdays build the streak; a missed weekday softens it back a tier instead of resetting to zero. ' +
-    'Weekends count fully if logged, and cost nothing if skipped.';
 }
 
 document.getElementById('logBtn').addEventListener('click', () => {
