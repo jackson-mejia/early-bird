@@ -76,9 +76,26 @@ newer side still having that day logged, which is what re-logging a deleted day 
 Anyone holding the code can read and change the log. That is the accepted trade for having no
 accounts and no passwords.
 
-The storage provider is two lines — `SYNC_BASE` and the three `fetch` calls that use it. Swapping
-providers means changing that constant and, if the new one does not hand back an id in a
-`Location` header, the one line in `syncCreate()` that reads it.
+### The provider is not durable yet
+
+`SYNC_BASE` currently points at jsonblob.com, which **expires a blob 24 hours after its last
+write**. Measured, not documented: a blob written at 21:32 reported
+`x-jsonblob-expires-at` of 21:32 the next day with `precision: exact`, and a read 15 minutes later
+did not extend it. Opening the app renews the window, because a pull is followed by a push. Going
+a full day without opening it does not.
+
+That is the wrong shape for this app. Missed days are expected here — the streak rules are built
+around them and weekends are explicitly free — so a quiet weekend kills the shared copy. Local
+data is never at risk, since `localStorage` is the source of truth, but the code stops working and
+the devices silently stop agreeing. A pull that 404s now says so plainly instead of failing quiet.
+
+Before anyone relies on sync, move `SYNC_BASE` to something durable. Cloudflare Workers with a KV
+namespace, or a single Supabase table keyed by code, both work and both are free at this size.
+
+Swapping providers means changing that constant and the three `fetch` calls that use it, plus — if
+the new one does not hand back an id in a `Location` header — the one line in `syncCreate()` that
+reads it. jsonblob does expose `Location` via `access-control-expose-headers`, and allows
+`GET`/`POST`/`PUT` from any origin, so the create path itself works.
 
 ## Gotchas
 

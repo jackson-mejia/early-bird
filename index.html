@@ -716,6 +716,10 @@ async function syncPull() {
   syncStatus('Checking for changes…');
   try {
     const res = await fetch(SYNC_BASE + '/' + encodeURIComponent(sync.code), { headers: { 'Accept': 'application/json' } });
+    if (res.status === 404) {
+      syncStatus('This sync code has expired, so the two devices are no longer talking. Everything logged on this device is safe. Turn sync off and on again for a new code, then open the new link on the other device.');
+      return;
+    }
     if (!res.ok) throw new Error('http ' + res.status);
     const remote = await res.json();
     if (remote && remote.entries) {
@@ -725,6 +729,7 @@ async function syncPull() {
       render();
     }
     syncStatus('Up to date.');
+    syncPushSoon();   // the shared copy expires 24h after its last write, so opening the app renews it
   } catch (e) {
     syncStatus('Could not reach sync. This device’s copy is being used and nothing was lost.');
   }
