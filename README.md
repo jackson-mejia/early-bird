@@ -47,6 +47,11 @@ days 3–6 are 1.25x, day 7 onward is 1.5x.
 (7+ becomes 4, 3–6 becomes 1, otherwise 0) rather than resetting to zero. Logging a weekend day
 extends the streak; skipping one costs nothing.
 
+**Logging.** Both the wake time and the study minutes have to be filled in before a day saves,
+in the entry form and when editing an existing day. Zero is a valid study entry — a day with no
+studying is logged as 0, not left blank — so that a half-filled form never turns into a scored
+entry by accident.
+
 **Recomputation.** Points are never stored, only raw inputs. `recompute()` walks every day from
 the first entry to today and derives all points and the streak fresh on each render, which is what
 makes editing an old entry correctly update everything after it. Do not cache scored values

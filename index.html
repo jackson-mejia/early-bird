@@ -62,6 +62,10 @@
   input[type="text"] { font-family: 'Work Sans', sans-serif; }
   input:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
   .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .field-error { color: var(--rose); font-size: 12px; line-height: 1.4; margin-top: 6px; }
+  input.invalid { border-color: var(--rose); }
+  input.invalid:focus { outline-color: var(--rose); }
+  .req { color: var(--gold); }
 
   button { font-family: 'Work Sans', sans-serif; font-weight: 600; font-size: 14px; border: none; border-radius: 10px; padding: 12px 18px; cursor: pointer; }
   .btn-primary { background: var(--gold); color: var(--ink); width: 100%; }
@@ -172,19 +176,23 @@
 
   <div class="card">
     <h2>Log a day</h2>
-    <div class="subhead">Defaults to today, but you can pick any date to fill in one you missed. Saving over a date you've already logged just replaces it.</div>
+    <div class="subhead">Defaults to today, but you can pick any date to fill in one you missed.
+    Saving over a date you've already logged just replaces it. Both fields below are required —
+    on a day with no studying, put in 0 rather than leaving it blank.</div>
     <div class="field">
       <label for="logDate">Date</label>
       <input type="date" id="logDate">
     </div>
     <div class="row2">
       <div class="field">
-        <label for="wakeTime">Wake time</label>
+        <label for="wakeTime">Wake time <span class="req">*</span></label>
         <input type="time" id="wakeTime">
+        <div class="field-error" id="wakeTimeErr"></div>
       </div>
       <div class="field">
-        <label for="studyMin">Study minutes</label>
-        <input type="number" id="studyMin" placeholder="0" min="0">
+        <label for="studyMin">Study minutes <span class="req">*</span></label>
+        <input type="number" id="studyMin" placeholder="0" min="0" inputmode="numeric">
+        <div class="field-error" id="studyMinErr"></div>
       </div>
     </div>
     <button class="btn-primary" id="logBtn">Save entry</button>
@@ -483,8 +491,8 @@ function renderHistory(calc) {
         '<div class="edit-head">Editing ' + fmtDateShort(d) + '</div>' +
         (calc.detail[d] ? '<div class="edit-math">' + scoreLine(calc.detail[d]) + '</div>' : '') +
         '<div class="row2">' +
-          '<div class="field"><label>Wake time</label><input type="time" id="editWake" value="' + (e.wake || '') + '"></div>' +
-          '<div class="field"><label>Study minutes</label><input type="number" id="editStudy" min="0" value="' + (e.studyMin || 0) + '"></div>' +
+          '<div class="field"><label>Wake time <span class="req">*</span></label><input type="time" id="editWake" value="' + (e.wake || '') + '"><div class="field-error" id="editWakeErr"></div></div>' +
+          '<div class="field"><label>Study minutes <span class="req">*</span></label><input type="number" id="editStudy" min="0" inputmode="numeric" value="' + (e.studyMin || 0) + '"><div class="field-error" id="editStudyErr"></div></div>' +
         '</div>' +
         '<div class="edit-actions">' +
           '<button class="btn-save" id="editSaveBtn">Save changes</button>' +
@@ -510,8 +518,15 @@ function renderHistory(calc) {
       saveBtn.addEventListener('click', (ev) => {
         ev.stopPropagation();
         const wake = document.getElementById('editWake').value;
-        const studyMin = parseInt(document.getElementById('editStudy').value) || 0;
-        state.entries[editingDate] = { wake, studyMin };
+        const study = readStudy('editStudy');
+
+        fieldError('editWake', '');
+        fieldError('editStudy', '');
+        if (!wake) fieldError('editWake', 'Enter the time you woke up.');
+        if (study.err) fieldError('editStudy', study.err);
+        if (!wake || study.err) return;
+
+        state.entries[editingDate] = { wake, studyMin: study.value };
         editingDate = null;
         save(); render();
       });
@@ -527,6 +542,10 @@ function renderHistory(calc) {
         delete state.entries[editingDate];
         editingDate = null;
         save(); render();
+      });
+      ['editWake', 'editStudy'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('input', () => fieldError(id, ''));
       });
       const panel = document.querySelector('.edit-panel');
       if (panel) panel.addEventListener('click', (ev) => ev.stopPropagation());
@@ -566,13 +585,37 @@ function render() {
   renderHistory(calc);
 }
 
+// Both inputs have to be filled in, but zero is a legitimate study day. The
+// point is that a day with no studying gets said out loud rather than left
+// blank, so a half-filled form never becomes a silently scored entry.
+function fieldError(id, msg) {
+  document.getElementById(id).classList.toggle('invalid', !!msg);
+  document.getElementById(id + 'Err').textContent = msg || '';
+}
+function readStudy(id) {
+  const raw = document.getElementById(id).value.trim();
+  if (raw === '') return { err: 'Enter the minutes you studied, or 0 if none.' };
+  const n = parseInt(raw, 10);
+  if (!Number.isFinite(n) || n < 0) return { err: 'Minutes must be a number, 0 or more.' };
+  return { value: n };
+}
+
+['wakeTime', 'studyMin'].forEach(id => {
+  document.getElementById(id).addEventListener('input', () => fieldError(id, ''));
+});
+
 document.getElementById('logBtn').addEventListener('click', () => {
   const date = document.getElementById('logDate').value || todayStr();
   const wake = document.getElementById('wakeTime').value;
-  const studyMin = parseInt(document.getElementById('studyMin').value) || 0;
+  const study = readStudy('studyMin');
 
-  if (!wake && !studyMin) { alert('Add a wake time or some study minutes first.'); return; }
+  fieldError('wakeTime', '');
+  fieldError('studyMin', '');
+  if (!wake) fieldError('wakeTime', 'Enter the time you woke up.');
+  if (study.err) fieldError('studyMin', study.err);
+  if (!wake || study.err) return;
 
+  const studyMin = study.value;
   state.entries[date] = { wake, studyMin };
   document.getElementById('wakeTime').value = '';
   document.getElementById('studyMin').value = '';
