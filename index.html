@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Early Bird">
+<meta name="theme-color" content="#1b1f3b">
+<title>Early Bird — GRE Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #16182b;
+    --night: #1b1f3b;
+    --night-2: #262c52;
+    --cream: #f6f2e9;
+    --gold: #e8a94c;
+    --lav: #8c7ae6;
+    --rose: #e8735c;
+    --line: rgba(246,242,233,0.14);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--night); color: var(--cream);
+    font-family: 'Work Sans', sans-serif; -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 28px 20px 80px; }
+  @media (max-width: 420px) { .wrap { padding: 20px 14px 70px; } }
+
+  h1 { font-family: 'Fraunces', serif; font-weight: 600; font-size: clamp(28px, 6vw, 40px); margin: 0 0 4px; letter-spacing: -0.01em; }
+  .sub { color: rgba(246,242,233,0.6); font-size: 14px; margin-bottom: 28px; }
+
+  .dial-card { background: var(--night-2); border-radius: 20px; padding: 20px 20px 8px; margin-bottom: 22px; border: 1px solid var(--line); }
+  .dial-label { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+  .dial-label .cap { font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; color: rgba(246,242,233,0.5); }
+  .dial-label .streak-num { font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--gold); }
+  svg { display: block; width: 100%; height: auto; }
+  .arc-track { fill: none; stroke: rgba(246,242,233,0.1); stroke-width: 10; }
+  .arc-fill { fill: none; stroke-width: 10; stroke-linecap: round; transition: stroke-dashoffset 0.6s ease; }
+  .sun { transition: cx 0.6s ease, cy 0.6s ease; }
+  .dial-readout { text-align: center; margin-top: -6px; }
+  .dial-readout .time { font-family: 'JetBrains Mono', monospace; font-size: 30px; font-weight: 700; }
+  .dial-readout .tag { font-size: 13px; color: rgba(246,242,233,0.6); margin-top: 2px; }
+
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 22px; }
+  .stat { background: var(--night-2); border: 1px solid var(--line); border-radius: 14px; padding: 14px 12px; text-align: center; }
+  .stat .n { font-family: 'JetBrains Mono', monospace; font-size: 24px; font-weight: 700; color: var(--gold); }
+  .stat .l { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: rgba(246,242,233,0.55); margin-top: 3px; }
+
+  .card { background: var(--night-2); border: 1px solid var(--line); border-radius: 20px; padding: 20px; margin-bottom: 22px; }
+  .card h2 { font-family: 'Fraunces', serif; font-size: 19px; font-weight: 600; margin: 0 0 4px; }
+  .card .subhead { font-size: 12.5px; color: rgba(246,242,233,0.5); margin-bottom: 14px; line-height: 1.5; }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: rgba(246,242,233,0.55); margin-bottom: 6px; }
+  input[type="time"], input[type="number"], input[type="text"], input[type="date"] {
+    width: 100%; background: var(--ink); border: 1px solid var(--line); border-radius: 10px;
+    color: var(--cream); padding: 12px; font-family: 'JetBrains Mono', monospace; font-size: 16px;
+  }
+  input[type="text"] { font-family: 'Work Sans', sans-serif; }
+  input:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  button { font-family: 'Work Sans', sans-serif; font-weight: 600; font-size: 14px; border: none; border-radius: 10px; padding: 12px 18px; cursor: pointer; }
+  .btn-primary { background: var(--gold); color: var(--ink); width: 100%; }
+  .btn-primary:hover { background: #f0b85f; }
+  .btn-ghost { background: transparent; border: 1px solid var(--line); color: rgba(246,242,233,0.7); font-size: 12px; padding: 8px 12px; }
+  .btn-ghost:hover { border-color: var(--gold); color: var(--gold); }
+  .btn-danger { background: transparent; border: 1px solid rgba(232,115,92,0.5); color: var(--rose); font-size: 13px; padding: 10px 14px; }
+  .btn-danger:hover { border-color: var(--rose); }
+  .btn-save { background: var(--gold); color: var(--ink); font-size: 13px; padding: 10px 14px; }
+
+  .reward-row { padding: 12px 0; border-bottom: 1px solid var(--line); }
+  .reward-row:last-child { border-bottom: none; }
+  .reward-row-top { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; margin-bottom: 8px; }
+  .reward-row-top .reward-name { flex: 1 1 120px; min-width: 0; }
+  .reward-target-wrap { display: flex; align-items: center; gap: 6px; font-size: 12px; color: rgba(246,242,233,0.5); flex: 0 0 auto; white-space: nowrap; }
+  .reward-target-wrap input { width: 56px; padding: 8px; font-size: 15px; }
+  @media (max-width: 380px) { .reward-row-top .reward-name { flex-basis: 100%; } }
+  .reward-bar-track { background: var(--ink); border-radius: 999px; height: 12px; overflow: hidden; }
+  .reward-bar-fill { background: linear-gradient(90deg, var(--rose), var(--gold)); height: 100%; border-radius: 999px; transition: width 0.5s ease; }
+  .reward-line { display: flex; justify-content: space-between; font-size: 12px; color: rgba(246,242,233,0.6); margin-top: 6px; font-family: 'JetBrains Mono', monospace; }
+  .reward-line .unlocked { color: var(--gold); font-weight: 700; }
+
+  .hist-item {
+    display: flex; justify-content: space-between; align-items: center; gap: 8px;
+    padding: 12px 8px; margin: 0 -8px; border-bottom: 1px solid var(--line);
+    font-size: 14px; cursor: pointer; border-radius: 8px;
+  }
+  .hist-item:hover { background: rgba(246,242,233,0.04); }
+  .hist-item:last-of-type { border-bottom: none; }
+  .hist-date { flex: 0 0 auto; color: rgba(246,242,233,0.55); font-size: 12px; }
+  .hist-mid { flex: 1; min-width: 0; text-align: center; font-family: 'JetBrains Mono', monospace; color: rgba(246,242,233,0.8); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+  .hist-pts { flex: 0 0 auto; font-family: 'JetBrains Mono', monospace; color: var(--gold); font-weight: 700; }
+  .hist-edit-hint { flex: 0 0 auto; color: rgba(246,242,233,0.3); font-size: 11px; }
+
+  .edit-panel { background: var(--ink); border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin: 4px -8px 12px; }
+  .edit-panel .edit-head { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--gold); margin-bottom: 10px; }
+  .edit-actions { display: flex; gap: 8px; }
+  .edit-actions button { flex: 1; }
+
+  .empty { color: rgba(246,242,233,0.4); font-size: 13px; text-align: center; padding: 10px 0; }
+  .foot-note { font-size: 12px; color: rgba(246,242,233,0.4); text-align: center; margin-top: 6px; line-height: 1.6; }
+  .top-actions { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
+  .backup-row { display: flex; gap: 8px; margin-top: 12px; }
+  .backup-row button { flex: 1; }
+  #importFile { display: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Early Bird</h1>
+  <div class="sub">Wake up. Show up. Watch it add up.</div>
+
+  <div class="dial-card">
+    <div class="dial-label">
+      <span class="cap">Today's arc</span>
+      <span class="streak-num" id="streakTag">streak · 0</span>
+    </div>
+    <svg id="dialSvg" viewBox="0 0 300 170">
+      <path class="arc-track" d="M 30 150 A 120 120 0 0 1 270 150"></path>
+      <path class="arc-fill" id="arcFill" d="M 30 150 A 120 120 0 0 1 270 150" stroke="#e8a94c"></path>
+      <circle class="sun" id="sunDot" r="9" fill="#f6f2e9" cx="270" cy="150"></circle>
+    </svg>
+    <div class="dial-readout">
+      <div class="time" id="readoutTime">—:—</div>
+      <div class="tag" id="readoutTag">no entry logged today</div>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="n" id="statTotal">0</div><div class="l">Total pts</div></div>
+    <div class="stat"><div class="n" id="statStreak">0</div><div class="l">Streak</div></div>
+    <div class="stat"><div class="n" id="statAvg">—</div><div class="l">Avg wake</div></div>
+  </div>
+
+  <div class="card">
+    <h2>Log a day</h2>
+    <div class="subhead">Defaults to today, but you can pick any date to fill in one you missed. Saving over a date you've already logged just replaces it.</div>
+    <div class="field">
+      <label for="logDate">Date</label>
+      <input type="date" id="logDate">
+    </div>
+    <div class="row2">
+      <div class="field">
+        <label for="wakeTime">Wake time</label>
+        <input type="time" id="wakeTime">
+      </div>
+      <div class="field">
+        <label for="studyMin">Study minutes</label>
+        <input type="number" id="studyMin" placeholder="0" min="0">
+      </div>
+    </div>
+    <button class="btn-primary" id="logBtn">Save entry</button>
+  </div>
+
+  <div class="card">
+    <h2>Reward milestones</h2>
+    <div class="subhead">These unlock permanently as the total climbs — nothing resets after a redemption.</div>
+    <div id="rewardsList"></div>
+  </div>
+
+  <div class="card">
+    <h2>History</h2>
+    <div class="subhead">Tap any day to fix the time, change the study minutes, or delete it. Points and streaks recalculate from scratch every time, so a correction to an old day updates everything after it.</div>
+    <div id="histList"><div class="empty">Nothing logged yet — your first entry starts the streak.</div></div>
+  </div>
+
+  <div class="card">
+    <h2>Backup</h2>
+    <div class="subhead">Data lives in this browser only. Save a backup file now and then so a cleared browser or a new phone doesn't lose the streak.</div>
+    <div class="backup-row">
+      <button class="btn-ghost" id="exportBtn">Save backup file</button>
+      <button class="btn-ghost" id="importBtn">Restore from file</button>
+    </div>
+    <input type="file" id="importFile" accept="application/json,.json">
+    <div class="top-actions" style="margin-top:14px;"><button class="btn-ghost" id="resetBtn">Reset all data</button></div>
+  </div>
+
+  <div class="foot-note" id="footNote"></div>
+</div>
+
+<script>
+const DATA_KEY = 'early-bird-data';
+const DEFAULT_REWARDS = [
+  { name: 'Plushie', target: 30 },
+  { name: 'Cactus dinner', target: 50 },
+  { name: 'Aritzia outfit', target: 180 }
+];
+let state = { entries: {}, rewards: JSON.parse(JSON.stringify(DEFAULT_REWARDS)) };
+let editingDate = null;
+
+function todayStr() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function addDays(dateStr, n) {
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() + n);
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function isWeekend(dateStr) {
+  const day = new Date(dateStr + 'T00:00:00').getDay();
+  return day === 0 || day === 6;
+}
+
+function wakePoints(timeStr) {
+  if (!timeStr) return 0;
+  const [h,m] = timeStr.split(':').map(Number);
+  const mins = h*60+m;
+  const baseline = 9*60;
+  if (mins >= baseline) return 0;
+  return Math.min(5, Math.floor((baseline - mins) / 30));
+}
+
+function bandLabel(timeStr) {
+  if (!timeStr) return 'no entry logged today';
+  const [h,m] = timeStr.split(':').map(Number);
+  const mins = h*60+m;
+  if (mins < 390) return 'before 6:30 — full points';
+  if (mins < 420) return '6:30–7:00';
+  if (mins < 450) return '7:00–7:30';
+  if (mins < 480) return '7:30–8:00';
+  if (mins < 510) return '8:00–8:30';
+  if (mins < 540) return '8:30–9:00 — baseline, no points yet';
+  return 'after 9:00 — no points';
+}
+
+function dropOneTier(streak) {
+  if (streak >= 7) return 4;
+  if (streak >= 3) return 1;
+  return 0;
+}
+function tierMultiplier(streak) {
+  if (streak >= 7) return 1.5;
+  if (streak >= 3) return 1.25;
+  return 1.0;
+}
+
+// Single source of truth: recompute every day's points and the streak from raw
+// entries. Nothing is stored pre-scored, so editing an old day correctly
+// updates that day AND every day after it.
+function recompute() {
+  const dates = Object.keys(state.entries).sort();
+  const result = { points: {}, streak: 0, total: 0 };
+  if (dates.length === 0) return result;
+
+  const endDate = todayStr() > dates[dates.length-1] ? todayStr() : dates[dates.length-1];
+  let streak = 0;
+  let cursor = dates[0];
+
+  while (cursor <= endDate) {
+    const entry = state.entries[cursor];
+    if (entry) {
+      streak++;
+      const mult = tierMultiplier(streak);
+      const pts = Math.round(wakePoints(entry.wake) * mult) + (entry.studyMin >= 30 ? 3 : 0);
+      result.points[cursor] = pts;
+      result.total += pts;
+    } else if (!isWeekend(cursor)) {
+      streak = dropOneTier(streak);
+    }
+    cursor = addDays(cursor, 1);
+  }
+  result.streak = streak;
+  return result;
+}
+
+function load() {
+  try {
+    const raw = localStorage.getItem(DATA_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      state.entries = parsed.entries || {};
+      state.rewards = Array.isArray(parsed.rewards) && parsed.rewards.length ? parsed.rewards : JSON.parse(JSON.stringify(DEFAULT_REWARDS));
+    }
+  } catch (e) { /* start fresh */ }
+  document.getElementById('logDate').value = todayStr();
+  render();
+}
+function save() {
+  try {
+    localStorage.setItem(DATA_KEY, JSON.stringify(state));
+  } catch (e) {
+    alert('Could not save. If you are in Private Browsing, switch to a normal tab — private mode blocks saving.');
+  }
+}
+
+function fmtDateShort(dateStr) {
+  return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+}
+function fmtTime(t) {
+  if (!t) return '—:—';
+  const [h,m] = t.split(':').map(Number);
+  const period = h >= 12 ? 'PM' : 'AM';
+  let hh = h % 12; if (hh === 0) hh = 12;
+  return hh + ':' + String(m).padStart(2,'0') + ' ' + period;
+}
+
+function drawDial(timeStr) {
+  const arcFill = document.getElementById('arcFill');
+  const sun = document.getElementById('sunDot');
+  const pathLen = 377;
+  arcFill.setAttribute('stroke-dasharray', pathLen);
+
+  let progress = 1;
+  if (timeStr) {
+    const [h,m] = timeStr.split(':').map(Number);
+    const mins = h*60+m;
+    progress = Math.max(0, Math.min(1, (mins - 6*60) / (3*60)));
+  }
+  arcFill.setAttribute('stroke-dashoffset', String(pathLen * (1 - progress)));
+  arcFill.style.stroke = progress < 0.35 ? '#e8a94c' : (progress < 0.75 ? '#c98a52' : '#8c7ae6');
+
+  const angle = Math.PI * (1 - progress);
+  sun.setAttribute('cx', 150 + 120*Math.cos(angle));
+  sun.setAttribute('cy', 150 - 120*Math.sin(angle));
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function renderRewards(total) {
+  const list = document.getElementById('rewardsList');
+  list.innerHTML = state.rewards.map((r, i) => {
+    const unlocked = total >= r.target;
+    const pct = r.target > 0 ? Math.min(100, (total/r.target)*100) : 0;
+    const remaining = Math.max(0, r.target - total);
+    return '<div class="reward-row">' +
+      '<div class="reward-row-top">' +
+        '<input type="text" class="reward-name" data-idx="' + i + '" value="' + escapeHtml(r.name) + '">' +
+        '<div class="reward-target-wrap">unlock at <input type="number" class="reward-target" data-idx="' + i + '" value="' + r.target + '" min="1"> pts</div>' +
+      '</div>' +
+      '<div class="reward-bar-track"><div class="reward-bar-fill" style="width:' + pct + '%"></div></div>' +
+      '<div class="reward-line"><span>' + total + ' / ' + r.target + ' pts</span>' +
+      '<span class="' + (unlocked ? 'unlocked' : '') + '">' + (unlocked ? '\u2713 unlocked' : remaining + ' to go') + '</span></div>' +
+    '</div>';
+  }).join('');
+
+  list.querySelectorAll('.reward-name').forEach(inp => {
+    inp.addEventListener('change', (e) => {
+      state.rewards[parseInt(e.target.dataset.idx)].name = e.target.value;
+      save(); render();
+    });
+  });
+  list.querySelectorAll('.reward-target').forEach(inp => {
+    inp.addEventListener('change', (e) => {
+      state.rewards[parseInt(e.target.dataset.idx)].target = parseInt(e.target.value) || 1;
+      save(); render();
+    });
+  });
+}
+
+function renderHistory(calc) {
+  const histList = document.getElementById('histList');
+  const dates = Object.keys(state.entries).sort().reverse();
+
+  if (dates.length === 0) {
+    histList.innerHTML = '<div class="empty">Nothing logged yet — your first entry starts the streak.</div>';
+    return;
+  }
+
+  histList.innerHTML = dates.slice(0, 60).map(d => {
+    const e = state.entries[d];
+    const pts = calc.points[d] || 0;
+    let html = '<div class="hist-item" data-date="' + d + '">' +
+      '<span class="hist-date">' + fmtDateShort(d) + '</span>' +
+      '<span class="hist-mid">' + fmtTime(e.wake) + (e.studyMin ? (' \u00b7 ' + e.studyMin + 'm') : '') + '</span>' +
+      '<span class="hist-pts">+' + pts + '</span>' +
+      '<span class="hist-edit-hint">edit</span>' +
+      '</div>';
+
+    if (editingDate === d) {
+      html += '<div class="edit-panel">' +
+        '<div class="edit-head">Editing ' + fmtDateShort(d) + '</div>' +
+        '<div class="row2">' +
+          '<div class="field"><label>Wake time</label><input type="time" id="editWake" value="' + (e.wake || '') + '"></div>' +
+          '<div class="field"><label>Study minutes</label><input type="number" id="editStudy" min="0" value="' + (e.studyMin || 0) + '"></div>' +
+        '</div>' +
+        '<div class="edit-actions">' +
+          '<button class="btn-save" id="editSaveBtn">Save changes</button>' +
+          '<button class="btn-ghost" id="editCancelBtn">Cancel</button>' +
+          '<button class="btn-danger" id="editDeleteBtn">Delete day</button>' +
+        '</div>' +
+      '</div>';
+    }
+    return html;
+  }).join('');
+
+  histList.querySelectorAll('.hist-item').forEach(row => {
+    row.addEventListener('click', () => {
+      const d = row.dataset.date;
+      editingDate = (editingDate === d) ? null : d;
+      render();
+    });
+  });
+
+  if (editingDate) {
+    const saveBtn = document.getElementById('editSaveBtn');
+    if (saveBtn) {
+      saveBtn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        const wake = document.getElementById('editWake').value;
+        const studyMin = parseInt(document.getElementById('editStudy').value) || 0;
+        state.entries[editingDate] = { wake, studyMin };
+        editingDate = null;
+        save(); render();
+      });
+      document.getElementById('editCancelBtn').addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        editingDate = null;
+        render();
+      });
+      document.getElementById('editDeleteBtn').addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        if (!confirm('Delete ' + fmtDateShort(editingDate) + '? Points and streak will recalculate without it.')) return;
+        delete state.entries[editingDate];
+        editingDate = null;
+        save(); render();
+      });
+      const panel = document.querySelector('.edit-panel');
+      if (panel) panel.addEventListener('click', (ev) => ev.stopPropagation());
+    }
+  }
+}
+
+function render() {
+  const calc = recompute();
+  const today = todayStr();
+  const todayEntry = state.entries[today];
+
+  drawDial(todayEntry ? todayEntry.wake : null);
+  document.getElementById('readoutTime').textContent = todayEntry ? fmtTime(todayEntry.wake) : '—:—';
+  document.getElementById('readoutTag').textContent = bandLabel(todayEntry ? todayEntry.wake : null);
+
+  document.getElementById('streakTag').textContent = 'streak \u00b7 ' + calc.streak;
+  document.getElementById('statStreak').textContent = calc.streak;
+  document.getElementById('statTotal').textContent = calc.total;
+
+  const dates = Object.keys(state.entries);
+  let wakeMinSum = 0, wakeCount = 0;
+  dates.forEach(d => {
+    if (state.entries[d].wake) {
+      const [h,m] = state.entries[d].wake.split(':').map(Number);
+      wakeMinSum += h*60+m; wakeCount++;
+    }
+  });
+  if (wakeCount > 0) {
+    const avg = Math.round(wakeMinSum / wakeCount);
+    document.getElementById('statAvg').textContent = String(Math.floor(avg/60)).padStart(2,'0')+':'+String(avg%60).padStart(2,'0');
+  } else {
+    document.getElementById('statAvg').textContent = '—';
+  }
+
+  renderRewards(calc.total);
+  renderHistory(calc);
+
+  document.getElementById('footNote').textContent =
+    'Wake points: before 6:30 = 5, then down one point every 30 min to 0 at 9:00. ' +
+    'Study adds a flat +3 at 30+ min, independent of wake time and streak. ' +
+    'Weekdays build the streak; a missed weekday softens it back a tier instead of resetting to zero. ' +
+    'Weekends count fully if logged, and cost nothing if skipped.';
+}
+
+document.getElementById('logBtn').addEventListener('click', () => {
+  const date = document.getElementById('logDate').value || todayStr();
+  const wake = document.getElementById('wakeTime').value;
+  const studyMin = parseInt(document.getElementById('studyMin').value) || 0;
+
+  if (!wake && !studyMin) { alert('Add a wake time or some study minutes first.'); return; }
+
+  state.entries[date] = { wake, studyMin };
+  document.getElementById('wakeTime').value = '';
+  document.getElementById('studyMin').value = '';
+  save(); render();
+});
+
+document.getElementById('exportBtn').addEventListener('click', () => {
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'early-bird-backup-' + todayStr() + '.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+document.getElementById('importBtn').addEventListener('click', () => document.getElementById('importFile').click());
+document.getElementById('importFile').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const parsed = JSON.parse(reader.result);
+      if (!parsed.entries) throw new Error('bad file');
+      if (!confirm('Restore this backup? It replaces everything currently logged here.')) return;
+      state.entries = parsed.entries;
+      state.rewards = Array.isArray(parsed.rewards) && parsed.rewards.length ? parsed.rewards : JSON.parse(JSON.stringify(DEFAULT_REWARDS));
+      save(); render();
+    } catch (err) {
+      alert('That file could not be read. Pick an Early Bird backup file.');
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+});
+
+document.getElementById('resetBtn').addEventListener('click', () => {
+  if (!confirm('Reset all logged entries and milestone progress? This cannot be undone.')) return;
+  state = { entries: {}, rewards: JSON.parse(JSON.stringify(DEFAULT_REWARDS)) };
+  editingDate = null;
+  save(); render();
+});
+
+load();
+</script>
+</body>
+</html>
