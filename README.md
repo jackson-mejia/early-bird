@@ -59,9 +59,13 @@ extends the streak; skipping one costs nothing.
 
 **Rewards.** Most are point thresholds, editable in the app, and unlock permanently once the
 running total passes them. One is different: a reward carrying `type: 'event'` is not tied to
-points at all and is marked done by hand — that is the dinner for finishing the GRE. Rewards saved
-before that existed get it appended on load rather than needing a reset, and a reward with no
-`type` is treated as a threshold, so old backups restore unchanged.
+points at all. That is the dinner, and it turns on the GRE score entered into it — 160 or better
+earns a Michelin recommended restaurant, 165 or better a one-star, and anything under 160 stays
+locked while still showing the score. Scores are validated to the 130–170 section range; the
+highest matching tier in `GRE_TIERS` wins, so adding a third tier means adding one entry.
+
+Rewards saved before the dinner existed get it appended on load rather than needing a reset, and a
+reward with no `type` is treated as a threshold, so old backups restore unchanged.
 
 **Logging.** All three fields — wake time, study minutes, questions — have to be filled in before
 a day saves, in the entry form and when editing an existing day. Zero is valid for both counts: a

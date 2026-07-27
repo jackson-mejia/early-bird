@@ -87,8 +87,7 @@
   .reward-bar-fill { background: linear-gradient(90deg, var(--rose), var(--gold)); height: 100%; border-radius: 999px; transition: width 0.5s ease; }
   .reward-line { display: flex; justify-content: space-between; font-size: 12px; color: rgba(246,242,233,0.6); margin-top: 6px; font-family: 'JetBrains Mono', monospace; }
   .reward-line .unlocked { color: var(--gold); font-weight: 700; }
-  .reward-line button { font-family: 'Work Sans', sans-serif; font-size: 11px; padding: 5px 10px; }
-  .reward-done.is-done { border-color: var(--gold); color: var(--gold); }
+  .reward-target-wrap .reward-score { width: 62px; }
 
   .hist-item {
     display: flex; justify-content: space-between; align-items: center; gap: 8px;
@@ -208,8 +207,9 @@
   <div class="card">
     <h2>Reward milestones</h2>
     <div class="subhead">These unlock permanently as the total climbs — nothing resets after a
-    redemption. The last one is not tied to points at all: it lands when the GRE is done, so it
-    gets marked by hand.</div>
+    redemption. The last one is not tied to points at all — it turns on the GRE score itself.
+    Enter that score once it's back: 160 or better earns a Michelin recommended restaurant, and
+    165 or better makes it a one-star.</div>
     <div id="rewardsList"></div>
   </div>
 
@@ -315,12 +315,27 @@ const DEFAULT_REWARDS = [
   { name: 'Plushie', target: 30 },
   { name: 'Cactus dinner', target: 50 },
   { name: 'Aritzia outfit', target: 180 },
-  // Not a points threshold. This one lands when the GRE itself is done, so it
-  // is marked by hand rather than unlocked by a total.
-  { name: 'Michelin dinner', type: 'event', done: false }
+  // Not a points threshold. This one lands on the GRE score itself, so it is
+  // resolved by entering that score rather than by any running total.
+  { name: 'Michelin dinner', type: 'event', score: null }
 ];
+
+// Section scores run 130 to 170. Highest matching tier wins.
+const GRE_MIN = 130, GRE_MAX = 170;
+const GRE_TIERS = [
+  { min: 165, label: 'One-star restaurant' },
+  { min: 160, label: 'Michelin recommended' }
+];
+function greTier(score) {
+  if (score === null || score === undefined || score === '') return null;
+  const s = Number(score);
+  if (!Number.isFinite(s)) return null;
+  for (let i = 0; i < GRE_TIERS.length; i++) if (s >= GRE_TIERS[i].min) return GRE_TIERS[i];
+  return null;
+}
 let state = { entries: {}, rewards: JSON.parse(JSON.stringify(DEFAULT_REWARDS)) };
 let editingDate = null;
+let rewardScoreError = null;   // transient: shown until the next render, never saved
 
 function todayStr() {
   const d = new Date();
@@ -494,17 +509,20 @@ function renderRewards(total) {
   const list = document.getElementById('rewardsList');
   list.innerHTML = state.rewards.map((r, i) => {
     if (r.type === 'event') {
+      const tier = greTier(r.score);
+      const scored = r.score !== null && r.score !== undefined && r.score !== '';
+      let left;
+      if (tier) left = tier.label;
+      else if (scored) left = 'Scored ' + r.score + ' — this one starts at ' + GRE_TIERS[GRE_TIERS.length-1].min;
+      else left = '160 recommended · 165 one star';
       return '<div class="reward-row">' +
         '<div class="reward-row-top">' +
           '<input type="text" class="reward-name" data-idx="' + i + '" value="' + escapeHtml(r.name) + '">' +
-          '<div class="reward-target-wrap">when the GRE is done</div>' +
+          '<div class="reward-target-wrap">GRE score <input type="number" class="reward-score" data-idx="' + i + '" min="' + GRE_MIN + '" max="' + GRE_MAX + '" inputmode="numeric" placeholder="—" value="' + (scored ? r.score : '') + '"></div>' +
         '</div>' +
-        '<div class="reward-line">' +
-          '<span>Not tied to points</span>' +
-          '<button class="btn-ghost reward-done' + (r.done ? ' is-done' : '') + '" data-idx="' + i + '">' +
-            (r.done ? '✓ unlocked' : 'Mark as done') +
-          '</button>' +
-        '</div>' +
+        '<div class="reward-line"><span>' + left + '</span>' +
+        '<span class="' + (tier ? 'unlocked' : '') + '">' + (tier ? '✓ unlocked' : (scored ? 'not yet' : 'after the GRE')) + '</span></div>' +
+        (rewardScoreError ? '<div class="field-error">' + escapeHtml(rewardScoreError) + '</div>' : '') +
       '</div>';
     }
     const unlocked = total >= r.target;
@@ -527,11 +545,22 @@ function renderRewards(total) {
       save(); render();
     });
   });
-  list.querySelectorAll('.reward-done').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      const r = state.rewards[parseInt(e.currentTarget.dataset.idx)];
-      if (r.done && !confirm('Mark "' + r.name + '" as not done yet?')) return;
-      r.done = !r.done;
+  list.querySelectorAll('.reward-score').forEach(inp => {
+    inp.addEventListener('change', (e) => {
+      const raw = e.target.value.trim();
+      const r = state.rewards[parseInt(e.target.dataset.idx)];
+      rewardScoreError = null;
+      if (raw === '') {
+        r.score = null;
+      } else {
+        const n = parseInt(raw, 10);
+        if (!Number.isFinite(n) || n < GRE_MIN || n > GRE_MAX) {
+          rewardScoreError = 'GRE section scores run from ' + GRE_MIN + ' to ' + GRE_MAX + '.';
+          render();
+          return;
+        }
+        r.score = n;
+      }
       save(); render();
     });
   });
