@@ -27,16 +27,18 @@ Push to `main` and GitHub Pages redeploys automatically. Data survives redeploys
 
 ## Scoring
 
-**Wake points.** Baseline 9:00, stepping down one point per 30 minutes earlier, capped at 5.
+**Wake points.** Baseline 9:00, which earns a point on its own. Every 30 minutes earlier adds
+another, capped at 6. Past 9:00 earns nothing.
 
 | Wake time | Points |
 |---|---|
-| Before 6:30 | 5 |
-| 6:30–7:00 | 4 |
-| 7:00–7:30 | 3 |
-| 7:30–8:00 | 2 |
-| 8:00–8:30 | 1 |
-| 8:30 onward | 0 |
+| Before 6:30 | 6 |
+| 6:30–7:00 | 5 |
+| 7:00–7:30 | 4 |
+| 7:30–8:00 | 3 |
+| 8:00–8:30 | 2 |
+| 8:30–9:00 | 1 |
+| After 9:00 | 0 |
 
 **Study bonus.** Flat +3 at 30 or more minutes, independent of wake time and streak.
 
@@ -46,6 +48,12 @@ days 3–6 are 1.25x, day 7 onward is 1.5x.
 **Streak rules.** A logged day increments the streak. A missed weekday drops it back one tier
 (7+ becomes 4, 3–6 becomes 1, otherwise 0) rather than resetting to zero. Logging a weekend day
 extends the streak; skipping one costs nothing.
+
+**Rewards.** Most are point thresholds, editable in the app, and unlock permanently once the
+running total passes them. One is different: a reward carrying `type: 'event'` is not tied to
+points at all and is marked done by hand — that is the dinner for finishing the GRE. Rewards saved
+before that existed get it appended on load rather than needing a reset, and a reward with no
+`type` is treated as a threshold, so old backups restore unchanged.
 
 **Logging.** Both the wake time and the study minutes have to be filled in before a day saves,
 in the entry form and when editing an existing day. Zero is a valid study entry — a day with no

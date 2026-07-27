@@ -87,6 +87,8 @@
   .reward-bar-fill { background: linear-gradient(90deg, var(--rose), var(--gold)); height: 100%; border-radius: 999px; transition: width 0.5s ease; }
   .reward-line { display: flex; justify-content: space-between; font-size: 12px; color: rgba(246,242,233,0.6); margin-top: 6px; font-family: 'JetBrains Mono', monospace; }
   .reward-line .unlocked { color: var(--gold); font-weight: 700; }
+  .reward-line button { font-family: 'Work Sans', sans-serif; font-size: 11px; padding: 5px 10px; }
+  .reward-done.is-done { border-color: var(--gold); color: var(--gold); }
 
   .hist-item {
     display: flex; justify-content: space-between; align-items: center; gap: 8px;
@@ -200,7 +202,9 @@
 
   <div class="card">
     <h2>Reward milestones</h2>
-    <div class="subhead">These unlock permanently as the total climbs — nothing resets after a redemption.</div>
+    <div class="subhead">These unlock permanently as the total climbs — nothing resets after a
+    redemption. The last one is not tied to points at all: it lands when the GRE is done, so it
+    gets marked by hand.</div>
     <div id="rewardsList"></div>
   </div>
 
@@ -215,14 +219,16 @@
     <div class="score-body">
       <div class="score-sec" style="margin-top:0;">
         <h3>Wake points</h3>
-        <p>Baseline is 9:00. Every 30 minutes earlier is worth one more point, up to five.</p>
+        <p>Baseline is 9:00, which is worth a point on its own. Every 30 minutes earlier adds
+        another, up to six.</p>
         <table class="score-table">
-          <tr><td>Before 6:30</td><td>5</td></tr>
-          <tr><td>6:30 – 7:00</td><td>4</td></tr>
-          <tr><td>7:00 – 7:30</td><td>3</td></tr>
-          <tr><td>7:30 – 8:00</td><td>2</td></tr>
-          <tr><td>8:00 – 8:30</td><td>1</td></tr>
-          <tr><td>8:30 onward</td><td>0</td></tr>
+          <tr><td>Before 6:30</td><td>6</td></tr>
+          <tr><td>6:30 – 7:00</td><td>5</td></tr>
+          <tr><td>7:00 – 7:30</td><td>4</td></tr>
+          <tr><td>7:30 – 8:00</td><td>3</td></tr>
+          <tr><td>8:00 – 8:30</td><td>2</td></tr>
+          <tr><td>8:30 – 9:00</td><td>1</td></tr>
+          <tr><td>After 9:00</td><td>0</td></tr>
         </table>
       </div>
 
@@ -247,7 +253,7 @@
 
       <div class="score-eg">
         Waking at <b>6:45</b> on the fourth day of a streak, with 40 minutes of study:
-        4 wake points &times; 1.25 = <b>5</b>, plus <b>3</b> for the study, so <b>8 points</b> that day.
+        5 wake points &times; 1.25 = <b>6</b>, plus <b>3</b> for the study, so <b>9 points</b> that day.
       </div>
 
       <div class="score-sec">
@@ -286,7 +292,10 @@ const DATA_KEY = 'early-bird-data';
 const DEFAULT_REWARDS = [
   { name: 'Plushie', target: 30 },
   { name: 'Cactus dinner', target: 50 },
-  { name: 'Aritzia outfit', target: 180 }
+  { name: 'Aritzia outfit', target: 180 },
+  // Not a points threshold. This one lands when the GRE itself is done, so it
+  // is marked by hand rather than unlocked by a total.
+  { name: 'Michelin dinner', type: 'event', done: false }
 ];
 let state = { entries: {}, rewards: JSON.parse(JSON.stringify(DEFAULT_REWARDS)) };
 let editingDate = null;
@@ -305,13 +314,15 @@ function isWeekend(dateStr) {
   return day === 0 || day === 6;
 }
 
+// 9:00 is the baseline and earns 1, not nothing — getting up and logging it
+// is worth something. Every 30 minutes earlier adds another point, to 6.
 function wakePoints(timeStr) {
   if (!timeStr) return 0;
   const [h,m] = timeStr.split(':').map(Number);
   const mins = h*60+m;
   const baseline = 9*60;
-  if (mins >= baseline) return 0;
-  return Math.min(5, Math.floor((baseline - mins) / 30));
+  if (mins > baseline) return 0;
+  return Math.min(6, Math.floor((baseline - mins) / 30) + 1);
 }
 
 function bandLabel(timeStr) {
@@ -323,7 +334,7 @@ function bandLabel(timeStr) {
   if (mins < 450) return '7:00–7:30';
   if (mins < 480) return '7:30–8:00';
   if (mins < 510) return '8:00–8:30';
-  if (mins < 540) return '8:30–9:00 — baseline, no points yet';
+  if (mins <= 540) return '8:30–9:00 — baseline';
   return 'after 9:00 — no points';
 }
 
@@ -380,6 +391,13 @@ function load() {
       state.rewards = Array.isArray(parsed.rewards) && parsed.rewards.length ? parsed.rewards : JSON.parse(JSON.stringify(DEFAULT_REWARDS));
     }
   } catch (e) { /* start fresh */ }
+  // Anyone whose rewards were saved before the GRE prize existed gets it added
+  // rather than having to reset to pick it up.
+  if (!state.rewards.some(r => r.type === 'event')) {
+    state.rewards = state.rewards.concat(
+      DEFAULT_REWARDS.filter(r => r.type === 'event').map(r => Object.assign({}, r))
+    );
+  }
   document.getElementById('logDate').value = todayStr();
   render();
 }
@@ -439,6 +457,20 @@ function escapeHtml(s) {
 function renderRewards(total) {
   const list = document.getElementById('rewardsList');
   list.innerHTML = state.rewards.map((r, i) => {
+    if (r.type === 'event') {
+      return '<div class="reward-row">' +
+        '<div class="reward-row-top">' +
+          '<input type="text" class="reward-name" data-idx="' + i + '" value="' + escapeHtml(r.name) + '">' +
+          '<div class="reward-target-wrap">when the GRE is done</div>' +
+        '</div>' +
+        '<div class="reward-line">' +
+          '<span>Not tied to points</span>' +
+          '<button class="btn-ghost reward-done' + (r.done ? ' is-done' : '') + '" data-idx="' + i + '">' +
+            (r.done ? '✓ unlocked' : 'Mark as done') +
+          '</button>' +
+        '</div>' +
+      '</div>';
+    }
     const unlocked = total >= r.target;
     const pct = r.target > 0 ? Math.min(100, (total/r.target)*100) : 0;
     const remaining = Math.max(0, r.target - total);
@@ -456,6 +488,14 @@ function renderRewards(total) {
   list.querySelectorAll('.reward-name').forEach(inp => {
     inp.addEventListener('change', (e) => {
       state.rewards[parseInt(e.target.dataset.idx)].name = e.target.value;
+      save(); render();
+    });
+  });
+  list.querySelectorAll('.reward-done').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const r = state.rewards[parseInt(e.currentTarget.dataset.idx)];
+      if (r.done && !confirm('Mark "' + r.name + '" as not done yet?')) return;
+      r.done = !r.done;
       save(); render();
     });
   });
