@@ -18,9 +18,10 @@ Push to `main` and GitHub Pages redeploys automatically. Data survives redeploys
 
 - **Do not change `DATA_KEY`** (`'early-bird-data'`). Changing it orphans existing data.
 - **Do not change the storage mechanism** without a migration path. It is plain `localStorage`.
-- **Do not change the shape of `state.entries`.** Each entry is `{ wake: "HH:MM", studyMin: number }`
-  keyed by `"YYYY-MM-DD"`. Export/restore reads and writes this shape, and old backup files must
-  stay restorable.
+- **Do not change the shape of `state.entries` except by adding optional fields.** Each entry is
+  `{ wake: "HH:MM", studyMin: number, questions: number }` keyed by `"YYYY-MM-DD"`. `questions`
+  was added after the fact and is read as 0 when absent, which is what keeps pre-questions backups
+  restorable. Any future field has to earn its keep the same way — never rename or remove one.
 - **Keep it one file.** Splitting into modules means a build step.
 - **Do not add a custom domain.** A new origin means a new `localStorage` namespace, and the
   logged history goes with it.
@@ -42,8 +43,15 @@ another, capped at 6. Past 9:00 earns nothing.
 
 **Study bonus.** Flat +3 at 30 or more minutes, independent of wake time and streak.
 
-**Streak multiplier.** Applies to wake points only, never the study bonus: days 1–2 are 1.0x,
-days 3–6 are 1.25x, day 7 onward is 1.5x.
+**Questions.** Half a point per ten questions completed, capped at 3 — so 10 is 0.5, 25 is 1, and
+60 or more is 3. Like the study bonus, it does not scale with the streak.
+
+**Half points.** Scores land on the nearest half rather than the nearest whole number, so a
+multiplier that produces a fraction keeps it. `fmtPts` renders a whole number without a trailing
+`.0`. Every value stays a multiple of 0.5, which is exact in binary, so totals do not drift.
+
+**Streak multiplier.** Applies to wake points only, never the study bonus or the questions:
+days 1–2 are 1.0x, days 3–6 are 1.25x, day 7 onward is 1.5x.
 
 **Streak rules.** A logged day increments the streak. A missed weekday drops it back one tier
 (7+ becomes 4, 3–6 becomes 1, otherwise 0) rather than resetting to zero. Logging a weekend day
@@ -55,10 +63,10 @@ points at all and is marked done by hand — that is the dinner for finishing th
 before that existed get it appended on load rather than needing a reset, and a reward with no
 `type` is treated as a threshold, so old backups restore unchanged.
 
-**Logging.** Both the wake time and the study minutes have to be filled in before a day saves,
-in the entry form and when editing an existing day. Zero is a valid study entry — a day with no
-studying is logged as 0, not left blank — so that a half-filled form never turns into a scored
-entry by accident.
+**Logging.** All three fields — wake time, study minutes, questions — have to be filled in before
+a day saves, in the entry form and when editing an existing day. Zero is valid for both counts: a
+day with no studying is logged as 0, not left blank, so that a half-filled form never turns into a
+scored entry by accident.
 
 **Recomputation.** Points are never stored, only raw inputs. `recompute()` walks every day from
 the first entry to today and derives all points and the streak fresh on each render, which is what

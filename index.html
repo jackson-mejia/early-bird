@@ -179,8 +179,8 @@
   <div class="card">
     <h2>Log a day</h2>
     <div class="subhead">Defaults to today, but you can pick any date to fill in one you missed.
-    Saving over a date you've already logged just replaces it. Both fields below are required —
-    on a day with no studying, put in 0 rather than leaving it blank.</div>
+    Saving over a date you've already logged just replaces it. All three fields below are
+    required — on a day with no studying or no questions, put in 0 rather than leaving it blank.</div>
     <div class="field">
       <label for="logDate">Date</label>
       <input type="date" id="logDate">
@@ -196,6 +196,11 @@
         <input type="number" id="studyMin" placeholder="0" min="0" inputmode="numeric">
         <div class="field-error" id="studyMinErr"></div>
       </div>
+    </div>
+    <div class="field">
+      <label for="questions">Questions completed <span class="req">*</span></label>
+      <input type="number" id="questions" placeholder="0" min="0" inputmode="numeric">
+      <div class="field-error" id="questionsErr"></div>
     </div>
     <button class="btn-primary" id="logBtn">Save entry</button>
   </div>
@@ -239,9 +244,25 @@
       </div>
 
       <div class="score-sec">
+        <h3>Questions</h3>
+        <p>Half a point for every ten questions completed, up to three. Like the study bonus, it
+        does not scale with the streak.</p>
+        <table class="score-table">
+          <tr><td>Under 10</td><td>0</td></tr>
+          <tr><td>10 – 19</td><td>0.5</td></tr>
+          <tr><td>20 – 29</td><td>1</td></tr>
+          <tr><td>30 – 39</td><td>1.5</td></tr>
+          <tr><td>40 – 49</td><td>2</td></tr>
+          <tr><td>50 – 59</td><td>2.5</td></tr>
+          <tr><td>60 or more</td><td>3</td></tr>
+        </table>
+      </div>
+
+      <div class="score-sec">
         <h3>Streak multiplier</h3>
-        <p>Multiplies the wake points only, never the study bonus. Days 1–2 count at 1x, days 3–6
-        at 1.25x, and day 7 onward at 1.5x.</p>
+        <p>Multiplies the wake points only, never the study bonus or the questions. Days 1–2 count
+        at 1x, days 3–6 at 1.25x, and day 7 onward at 1.5x. Scores land on the nearest half point,
+        so a multiplier that produces a fraction keeps it rather than rounding it away.</p>
       </div>
 
       <div class="score-sec">
@@ -252,8 +273,9 @@
       </div>
 
       <div class="score-eg">
-        Waking at <b>6:45</b> on the fourth day of a streak, with 40 minutes of study:
-        5 wake points &times; 1.25 = <b>6</b>, plus <b>3</b> for the study, so <b>9 points</b> that day.
+        Waking at <b>6:45</b> on the fourth day of a streak, with 40 minutes of study and 25
+        questions: 5 wake points &times; 1.25 = <b>6.5</b>, plus <b>3</b> for the study and
+        <b>1</b> for the questions, so <b>10.5 points</b> that day.
       </div>
 
       <div class="score-sec">
@@ -325,6 +347,18 @@ function wakePoints(timeStr) {
   return Math.min(6, Math.floor((baseline - mins) / 30) + 1);
 }
 
+// Scores land on half points, so the streak multiplier no longer has to round
+// away a fraction it legitimately produced.
+function roundHalf(n) { return Math.round(n * 2) / 2; }
+function fmtPts(n) { return Number.isInteger(n) ? String(n) : n.toFixed(1); }
+
+// Half a point per ten questions, to three.
+function questionPoints(count) {
+  const q = Number(count) || 0;
+  if (q <= 0) return 0;
+  return Math.min(3, Math.floor(q / 10) * 0.5);
+}
+
 function bandLabel(timeStr) {
   if (!timeStr) return 'no entry logged today';
   const [h,m] = timeStr.split(':').map(Number);
@@ -367,11 +401,12 @@ function recompute() {
       streak++;
       const mult = tierMultiplier(streak);
       const wakePts = wakePoints(entry.wake);
-      const scaled = Math.round(wakePts * mult);
+      const scaled = roundHalf(wakePts * mult);
       const studyBonus = entry.studyMin >= 30 ? 3 : 0;
-      const pts = scaled + studyBonus;
+      const questionPts = questionPoints(entry.questions);
+      const pts = scaled + studyBonus + questionPts;
       result.points[cursor] = pts;
-      result.detail[cursor] = { wakePts, mult, scaled, studyBonus, streak };
+      result.detail[cursor] = { wakePts, mult, scaled, studyBonus, questionPts, streak };
       result.total += pts;
     } else if (!isWeekend(cursor)) {
       streak = dropOneTier(streak);
@@ -425,9 +460,10 @@ function fmtTime(t) {
 // recomputed values the day is scored with.
 function scoreLine(dt) {
   let s = dt.wakePts + ' wake';
-  if (dt.mult > 1) s += ' × ' + dt.mult + ' (day ' + dt.streak + ') = ' + dt.scaled;
+  if (dt.mult > 1) s += ' × ' + dt.mult + ' (day ' + dt.streak + ') = ' + fmtPts(dt.scaled);
   if (dt.studyBonus) s += ', +' + dt.studyBonus + ' study';
-  return s + ' → ' + (dt.scaled + dt.studyBonus) + ' pts';
+  if (dt.questionPts) s += ', +' + fmtPts(dt.questionPts) + ' questions';
+  return s + ' → ' + fmtPts(dt.scaled + dt.studyBonus + dt.questionPts) + ' pts';
 }
 
 function drawDial(timeStr) {
@@ -480,8 +516,8 @@ function renderRewards(total) {
         '<div class="reward-target-wrap">unlock at <input type="number" class="reward-target" data-idx="' + i + '" value="' + r.target + '" min="1"> pts</div>' +
       '</div>' +
       '<div class="reward-bar-track"><div class="reward-bar-fill" style="width:' + pct + '%"></div></div>' +
-      '<div class="reward-line"><span>' + total + ' / ' + r.target + ' pts</span>' +
-      '<span class="' + (unlocked ? 'unlocked' : '') + '">' + (unlocked ? '\u2713 unlocked' : remaining + ' to go') + '</span></div>' +
+      '<div class="reward-line"><span>' + fmtPts(total) + ' / ' + r.target + ' pts</span>' +
+      '<span class="' + (unlocked ? 'unlocked' : '') + '">' + (unlocked ? '\u2713 unlocked' : fmtPts(remaining) + ' to go') + '</span></div>' +
     '</div>';
   }).join('');
 
@@ -521,8 +557,8 @@ function renderHistory(calc) {
     const pts = calc.points[d] || 0;
     let html = '<div class="hist-item" data-date="' + d + '">' +
       '<span class="hist-date">' + fmtDateShort(d) + '</span>' +
-      '<span class="hist-mid">' + fmtTime(e.wake) + (e.studyMin ? (' \u00b7 ' + e.studyMin + 'm') : '') + '</span>' +
-      '<span class="hist-pts">+' + pts + '</span>' +
+      '<span class="hist-mid">' + fmtTime(e.wake) + (e.studyMin ? (' \u00b7 ' + e.studyMin + 'm') : '') + (e.questions ? (' \u00b7 ' + e.questions + 'q') : '') + '</span>' +
+      '<span class="hist-pts">+' + fmtPts(pts) + '</span>' +
       '<span class="hist-edit-hint">edit</span>' +
       '</div>';
 
@@ -534,6 +570,7 @@ function renderHistory(calc) {
           '<div class="field"><label>Wake time <span class="req">*</span></label><input type="time" id="editWake" value="' + (e.wake || '') + '"><div class="field-error" id="editWakeErr"></div></div>' +
           '<div class="field"><label>Study minutes <span class="req">*</span></label><input type="number" id="editStudy" min="0" inputmode="numeric" value="' + (e.studyMin || 0) + '"><div class="field-error" id="editStudyErr"></div></div>' +
         '</div>' +
+        '<div class="field"><label>Questions completed <span class="req">*</span></label><input type="number" id="editQuestions" min="0" inputmode="numeric" value="' + (e.questions || 0) + '"><div class="field-error" id="editQuestionsErr"></div></div>' +
         '<div class="edit-actions">' +
           '<button class="btn-save" id="editSaveBtn">Save changes</button>' +
           '<button class="btn-ghost" id="editCancelBtn">Cancel</button>' +
@@ -558,15 +595,18 @@ function renderHistory(calc) {
       saveBtn.addEventListener('click', (ev) => {
         ev.stopPropagation();
         const wake = document.getElementById('editWake').value;
-        const study = readStudy('editStudy');
+        const study = readCount('editStudy', BLANK_STUDY);
+        const quest = readCount('editQuestions', BLANK_QUESTIONS);
 
         fieldError('editWake', '');
         fieldError('editStudy', '');
+        fieldError('editQuestions', '');
         if (!wake) fieldError('editWake', 'Enter the time you woke up.');
         if (study.err) fieldError('editStudy', study.err);
-        if (!wake || study.err) return;
+        if (quest.err) fieldError('editQuestions', quest.err);
+        if (!wake || study.err || quest.err) return;
 
-        state.entries[editingDate] = { wake, studyMin: study.value };
+        state.entries[editingDate] = { wake, studyMin: study.value, questions: quest.value };
         editingDate = null;
         save(); render();
       });
@@ -583,7 +623,7 @@ function renderHistory(calc) {
         editingDate = null;
         save(); render();
       });
-      ['editWake', 'editStudy'].forEach(id => {
+      ['editWake', 'editStudy', 'editQuestions'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.addEventListener('input', () => fieldError(id, ''));
       });
@@ -604,7 +644,7 @@ function render() {
 
   document.getElementById('streakTag').textContent = 'streak \u00b7 ' + calc.streak;
   document.getElementById('statStreak').textContent = calc.streak;
-  document.getElementById('statTotal').textContent = calc.total;
+  document.getElementById('statTotal').textContent = fmtPts(calc.total);
 
   const dates = Object.keys(state.entries);
   let wakeMinSum = 0, wakeCount = 0;
@@ -632,33 +672,40 @@ function fieldError(id, msg) {
   document.getElementById(id).classList.toggle('invalid', !!msg);
   document.getElementById(id + 'Err').textContent = msg || '';
 }
-function readStudy(id) {
+const BLANK_STUDY = 'Enter the minutes you studied, or 0 if none.';
+const BLANK_QUESTIONS = 'Enter how many questions you did, or 0 if none.';
+const BAD_COUNT = 'Enter a number, 0 or more.';
+
+function readCount(id, blankMsg) {
   const raw = document.getElementById(id).value.trim();
-  if (raw === '') return { err: 'Enter the minutes you studied, or 0 if none.' };
+  if (raw === '') return { err: blankMsg };
   const n = parseInt(raw, 10);
-  if (!Number.isFinite(n) || n < 0) return { err: 'Minutes must be a number, 0 or more.' };
+  if (!Number.isFinite(n) || n < 0) return { err: BAD_COUNT };
   return { value: n };
 }
 
-['wakeTime', 'studyMin'].forEach(id => {
+['wakeTime', 'studyMin', 'questions'].forEach(id => {
   document.getElementById(id).addEventListener('input', () => fieldError(id, ''));
 });
 
 document.getElementById('logBtn').addEventListener('click', () => {
   const date = document.getElementById('logDate').value || todayStr();
   const wake = document.getElementById('wakeTime').value;
-  const study = readStudy('studyMin');
+  const study = readCount('studyMin', BLANK_STUDY);
+  const quest = readCount('questions', BLANK_QUESTIONS);
 
   fieldError('wakeTime', '');
   fieldError('studyMin', '');
+  fieldError('questions', '');
   if (!wake) fieldError('wakeTime', 'Enter the time you woke up.');
   if (study.err) fieldError('studyMin', study.err);
-  if (!wake || study.err) return;
+  if (quest.err) fieldError('questions', quest.err);
+  if (!wake || study.err || quest.err) return;
 
-  const studyMin = study.value;
-  state.entries[date] = { wake, studyMin };
+  state.entries[date] = { wake, studyMin: study.value, questions: quest.value };
   document.getElementById('wakeTime').value = '';
   document.getElementById('studyMin').value = '';
+  document.getElementById('questions').value = '';
   save(); render();
 });
 
