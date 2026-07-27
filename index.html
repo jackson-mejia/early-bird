@@ -311,10 +311,12 @@
 
 <script>
 const DATA_KEY = 'early-bird-data';
+// Raised from 30/50/180 once questions started earning, so a day of practice
+// speeds the milestones up rather than simply moving them all forward.
 const DEFAULT_REWARDS = [
-  { name: 'Plushie', target: 30 },
-  { name: 'Cactus dinner', target: 50 },
-  { name: 'Aritzia outfit', target: 180 },
+  { name: 'Plushie', target: 35 },
+  { name: 'Cactus dinner', target: 55 },
+  { name: 'Aritzia outfit', target: 190 },
   // Not a points threshold. This one lands on the GRE score itself, so it is
   // resolved by entering that score rather than by any running total.
   { name: 'Michelin dinner', type: 'event', score: null }
@@ -432,6 +434,31 @@ function recompute() {
   return result;
 }
 
+// Brings a saved reward list up to date. Kept pure so it can be reasoned about
+// on its own: it never touches storage and returns what changed.
+//   - the GRE dinner is appended if it predates that reward existing
+//   - targets still sitting at the pre-questions defaults are raised, version
+//     gated so a target deliberately set back to 30 is not bumped again, and
+//     an edited target is never touched at all
+function migrateRewards(rewards, version) {
+  let out = rewards.slice();
+  let changed = false;
+
+  if (!out.some(r => r.type === 'event')) {
+    out = out.concat(DEFAULT_REWARDS.filter(r => r.type === 'event').map(r => Object.assign({}, r)));
+    changed = true;
+  }
+  if (version !== 2) {
+    const bump = { 30: 35, 50: 55, 180: 190 };
+    out = out.map(r => (r.type !== 'event' && bump[r.target] !== undefined)
+      ? Object.assign({}, r, { target: bump[r.target] })
+      : r);
+    version = 2;
+    changed = true;
+  }
+  return { rewards: out, version, changed };
+}
+
 function load() {
   try {
     const raw = localStorage.getItem(DATA_KEY);
@@ -439,15 +466,13 @@ function load() {
       const parsed = JSON.parse(raw);
       state.entries = parsed.entries || {};
       state.rewards = Array.isArray(parsed.rewards) && parsed.rewards.length ? parsed.rewards : JSON.parse(JSON.stringify(DEFAULT_REWARDS));
+      state.rewardsVersion = parsed.rewardsVersion;   // read back, or the migration below repeats every load
     }
   } catch (e) { /* start fresh */ }
-  // Anyone whose rewards were saved before the GRE prize existed gets it added
-  // rather than having to reset to pick it up.
-  if (!state.rewards.some(r => r.type === 'event')) {
-    state.rewards = state.rewards.concat(
-      DEFAULT_REWARDS.filter(r => r.type === 'event').map(r => Object.assign({}, r))
-    );
-  }
+  const migration = migrateRewards(state.rewards, state.rewardsVersion);
+  state.rewards = migration.rewards;
+  state.rewardsVersion = migration.version;
+  if (migration.changed) save();
   document.getElementById('logDate').value = todayStr();
   render();
 }
