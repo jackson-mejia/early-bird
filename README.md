@@ -64,18 +64,23 @@ earns a Michelin recommended restaurant, 165 or better a one-star, and anything 
 locked while still showing the score. Scores are validated to the 130–170 section range; the
 highest matching tier in `GRE_TIERS` wins, so adding a third tier means adding one entry.
 
-Thresholds are 35, 55 and 190, raised from 30/50/180 once questions started earning. They were
-picked by simulation rather than by feel: at a typical 20 to 25 questions a day they restore the
-pacing the old numbers gave with no questions at all — roughly weekday 4, 6 and 18 — so practice
-speeds the milestones up instead of the whole ladder simply sliding forward.
+Thresholds are 40, 75 and 200. At a typical 20 to 25 questions a day that lands them around
+weekday 5, 8 and 19; with no questions logged, weekday 5, 8 and 20; at 40 questions a day,
+weekday 4, 7 and 17. They started at 30/50/180 and were raised once when questions began earning
+and again to stretch the middle of the ladder out — the cactus dinner is the one that moved most,
+from about weekday 6 to 8.
 
-`migrateRewards()` handles both upgrades and is pure, so it can be tested on its own. Rewards
-saved before the dinner existed get it appended. Targets still sitting at the old defaults are
-raised, gated on `state.rewardsVersion` so a target deliberately set back to 30 is not bumped
-again on the next load and an edited target is never touched. That version is read back in
-`load()`; without that the migration would repeat on every load and make the old numbers
-impossible to choose. A reward with no `type` is treated as a threshold, so old backups restore
-unchanged.
+`migrateRewards()` handles the upgrades and is pure, so it can be tested on its own. Rewards saved
+before the dinner existed get it appended. Targets still sitting at any previously shipped default
+are raised, gated on `state.rewardsVersion` against `REWARDS_VERSION`, so a device that skipped a
+version still lands on the current numbers in one step and an already-migrated device is left
+alone. That version is read back in `load()`; without that the migration would repeat on every
+load and make the old numbers impossible to choose. Raise `REWARDS_VERSION` and extend the bump
+map whenever the defaults change again.
+
+One honest limit: the bump map matches on value, so a target deliberately set to a number that was
+once a default does move when the version changes. Anything not in the map is never touched.
+A reward with no `type` is treated as a threshold, so old backups restore unchanged.
 
 **Logging.** All three fields — wake time, study minutes, questions — have to be filled in before
 a day saves, in the entry form and when editing an existing day. Zero is valid for both counts: a

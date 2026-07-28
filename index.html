@@ -311,16 +311,19 @@
 
 <script>
 const DATA_KEY = 'early-bird-data';
-// Raised from 30/50/180 once questions started earning, so a day of practice
-// speeds the milestones up rather than simply moving them all forward.
+// Raised twice: once when questions started earning, and again to stretch the
+// middle of the ladder out.
 const DEFAULT_REWARDS = [
-  { name: 'Plushie', target: 35 },
-  { name: 'Cactus dinner', target: 55 },
-  { name: 'Aritzia outfit', target: 190 },
+  { name: 'Plushie', target: 40 },
+  { name: 'Cactus dinner', target: 75 },
+  { name: 'Aritzia outfit', target: 200 },
   // Not a points threshold. This one lands on the GRE score itself, so it is
   // resolved by entering that score rather than by any running total.
   { name: 'Michelin dinner', type: 'event', score: null }
 ];
+
+// Bumped whenever the default targets change, so each device migrates once.
+const REWARDS_VERSION = 3;
 
 // Section scores run 130 to 170. Highest matching tier wins.
 const GRE_MIN = 130, GRE_MAX = 170;
@@ -437,9 +440,11 @@ function recompute() {
 // Brings a saved reward list up to date. Kept pure so it can be reasoned about
 // on its own: it never touches storage and returns what changed.
 //   - the GRE dinner is appended if it predates that reward existing
-//   - targets still sitting at the pre-questions defaults are raised, version
-//     gated so a target deliberately set back to 30 is not bumped again, and
-//     an edited target is never touched at all
+//   - targets still sitting at a previous set of defaults are raised, version
+//     gated so a target deliberately set back to an old value is not bumped
+//     again on the next load
+// The bump map covers every default this app has shipped, so a device that
+// skipped a version still lands on the current numbers.
 function migrateRewards(rewards, version) {
   let out = rewards.slice();
   let changed = false;
@@ -448,12 +453,12 @@ function migrateRewards(rewards, version) {
     out = out.concat(DEFAULT_REWARDS.filter(r => r.type === 'event').map(r => Object.assign({}, r)));
     changed = true;
   }
-  if (version !== 2) {
-    const bump = { 30: 35, 50: 55, 180: 190 };
+  if (version !== REWARDS_VERSION) {
+    const bump = { 30: 40, 35: 40, 50: 75, 55: 75, 180: 200, 190: 200 };
     out = out.map(r => (r.type !== 'event' && bump[r.target] !== undefined)
       ? Object.assign({}, r, { target: bump[r.target] })
       : r);
-    version = 2;
+    version = REWARDS_VERSION;
     changed = true;
   }
   return { rewards: out, version, changed };
