@@ -57,19 +57,25 @@ days 1–2 are 1.0x, days 3–6 are 1.25x, day 7 onward is 1.5x.
 (7+ becomes 4, 3–6 becomes 1, otherwise 0) rather than resetting to zero. Logging a weekend day
 extends the streak; skipping one costs nothing.
 
-**Rewards.** A reward with no `type` is a point threshold, editable in the app, unlocking
-permanently once the running total passes it. Two are not tied to points at all:
+**Rewards.** Every row reads the same way: the editable name box holds the prize, the condition
+sits to its right, and the line underneath carries progress and status. A reward with no `type`
+is a point threshold, unlocking permanently once the running total passes it. Targets are fixed
+in `DEFAULT_REWARDS` and deliberately not editable in the app — a threshold that can be dragged
+down on a bad day is not a threshold. Two are not tied to points at all:
 
 - `type: 'score'` — the Michelin dinner. It turns on the GRE score entered into it: 160 or better
   earns a Michelin recommended restaurant, 165 or better a one-star, and anything under 160 stays
   locked while still showing what was scored. Scores are validated to the 130–170 section range,
   and the highest matching tier in `GRE_TIERS` wins, so another tier is one more entry.
-- `type: 'done'` — Gregmat Math Completion, whose prize is one pair of cutie shoes. It has no
-  threshold and no score, just a button marking it finished, with the prize named in `prize`.
-  Un-marking asks for confirmation so a stray tap does not take it back.
+- `type: 'done'` — one pair of cutie shoes, for finishing Gregmat's math section. No threshold
+  and no score, just a button marking it finished. The prize is the `name`, like everywhere else,
+  and `milestone` holds the condition. Un-marking asks for confirmation so a stray tap does not
+  take it back.
 
-The dinner originally shipped as `type: 'event'` when it was the only non-threshold reward. The
-migration renames it rather than appending a second one.
+Two shapes changed after shipping and are handled by the migration rather than left to rot: the
+dinner was `type: 'event'` when it was the only non-threshold reward, so it is renamed rather
+than duplicated; and the shoes first carried the milestone in `name` with the prize in `prize`,
+which read backwards against every other row, so those two are swapped.
 
 Thresholds are 40, 75 and 200. At a typical 20 to 25 questions a day that lands them around
 weekday 5, 8 and 19; with no questions logged, weekday 5, 8 and 20; at 40 questions a day,
@@ -86,9 +92,9 @@ alone. That version is read back in `load()`; without that the migration would r
 load and make the old numbers impossible to choose. Raise `REWARDS_VERSION` and extend the bump
 map whenever the defaults change again.
 
-One honest limit: the bump map matches on value, so a target deliberately set to a number that was
-once a default does move when the version changes. Anything not in the map is never touched.
-A reward with no `type` is treated as a threshold, so old backups restore unchanged.
+A reward with no `type` is treated as a threshold, so old backups restore unchanged. The bump map
+matches on value, which was a real caveat while targets were editable; now that they are not, the
+only values in play are the ones this app has shipped.
 
 **Logging.** All three fields — wake time, study minutes, questions — have to be filled in before
 a day saves, in the entry form and when editing an existing day. Zero is valid for both counts: a

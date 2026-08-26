@@ -87,6 +87,7 @@
   .reward-bar-fill { background: linear-gradient(90deg, var(--rose), var(--gold)); height: 100%; border-radius: 999px; transition: width 0.5s ease; }
   .reward-line { display: flex; justify-content: space-between; font-size: 12px; color: rgba(246,242,233,0.6); margin-top: 6px; font-family: 'JetBrains Mono', monospace; }
   .reward-line .unlocked { color: var(--gold); font-weight: 700; }
+  .reward-target-wrap b { color: var(--gold); font-family: 'JetBrains Mono', monospace; font-weight: 700; }
   .reward-target-wrap .reward-score { width: 62px; }
   .reward-row-top .reward-done { flex: 0 0 auto; }
   .reward-done.is-done { border-color: var(--gold); color: var(--gold); }
@@ -323,11 +324,11 @@ const DEFAULT_REWARDS = [
   // Not points thresholds. The dinner turns on the GRE score itself; the shoes
   // turn on finishing Gregmat's math section, which is just marked done.
   { name: 'Michelin dinner', type: 'score', score: null },
-  { name: 'Gregmat Math Completion', type: 'done', prize: 'One Pair of Cutie Shoes', done: false }
+  { name: 'One Pair of Cutie Shoes', type: 'done', milestone: 'Gregmat Math Completion', done: false }
 ];
 
 // Bumped whenever the default targets change, so each device migrates once.
-const REWARDS_VERSION = 4;
+const REWARDS_VERSION = 5;
 
 // Section scores run 130 to 170. Highest matching tier wins.
 const GRE_MIN = 130, GRE_MAX = 170;
@@ -462,6 +463,16 @@ function migrateRewards(rewards, version) {
     return Object.assign({}, r, { type: 'score' });
   });
 
+  // The shoes first shipped with the milestone in the name box and the prize
+  // on the line below, which is backwards from every other reward. Swap them.
+  out = out.map(r => {
+    if (r.type !== 'done' || !r.prize) return r;
+    changed = true;
+    const swapped = Object.assign({}, r, { name: r.prize, milestone: r.name });
+    delete swapped.prize;
+    return swapped;
+  });
+
   // Any non-threshold reward the saved list is missing gets added, so a device
   // that predates one of them picks it up without a reset.
   DEFAULT_REWARDS.filter(d => d.type).forEach(d => {
@@ -563,7 +574,7 @@ function renderRewards(total) {
             (r.done ? '✓ done' : 'Mark done') +
           '</button>' +
         '</div>' +
-        '<div class="reward-line"><span>' + escapeHtml(r.prize || 'Not tied to points') + '</span>' +
+        '<div class="reward-line"><span>' + escapeHtml(r.milestone || 'Not tied to points') + '</span>' +
         '<span class="' + (r.done ? 'unlocked' : '') + '">' + (r.done ? '✓ unlocked' : 'not yet') + '</span></div>' +
       '</div>';
     }
@@ -590,7 +601,7 @@ function renderRewards(total) {
     return '<div class="reward-row">' +
       '<div class="reward-row-top">' +
         '<input type="text" class="reward-name" data-idx="' + i + '" value="' + escapeHtml(r.name) + '">' +
-        '<div class="reward-target-wrap">unlock at <input type="number" class="reward-target" data-idx="' + i + '" value="' + r.target + '" min="1"> pts</div>' +
+        '<div class="reward-target-wrap">unlock at <b>' + r.target + '</b> pts</div>' +
       '</div>' +
       '<div class="reward-bar-track"><div class="reward-bar-fill" style="width:' + pct + '%"></div></div>' +
       '<div class="reward-line"><span>' + fmtPts(total) + ' / ' + r.target + ' pts</span>' +
@@ -628,12 +639,6 @@ function renderRewards(total) {
         }
         r.score = n;
       }
-      save(); render();
-    });
-  });
-  list.querySelectorAll('.reward-target').forEach(inp => {
-    inp.addEventListener('change', (e) => {
-      state.rewards[parseInt(e.target.dataset.idx)].target = parseInt(e.target.value) || 1;
       save(); render();
     });
   });

@@ -96,8 +96,9 @@ check('with no target', score[0].target, undefined);
 check('and no score yet', score[0].score, null);
 const doneR = app.DEFAULT_REWARDS.filter(r => r.type === 'done');
 check('one completion reward', doneR.length, 1);
-check('named for the milestone', doneR[0].name, 'Gregmat Math Completion');
-check('carrying its prize', doneR[0].prize, 'One Pair of Cutie Shoes');
+check('named for the prize, like every other reward', doneR[0].name, 'One Pair of Cutie Shoes');
+check('with the milestone as its condition', doneR[0].milestone, 'Gregmat Math Completion');
+check('and no leftover prize field', doneR[0].prize, undefined);
 check('starting undone', doneR[0].done, false);
 check('with no target', doneR[0].target, undefined);
 
@@ -121,8 +122,16 @@ check('leaving five rewards', mid.rewards.length, 5);
 const scored = app.migrateRewards([{ name: 'Michelin dinner', type: 'event', score: 166 }], app.REWARDS_VERSION);
 check('an entered score survives the rename', scored.rewards[0].score, 166);
 check('as a score reward', scored.rewards[0].type, 'score');
-const finished = app.migrateRewards([{ name: 'Gregmat Math Completion', type: 'done', prize: 'One Pair of Cutie Shoes', done: true }], app.REWARDS_VERSION);
-check('a completed milestone stays completed', finished.rewards[0].done, true);
+// The shoes first shipped with the milestone in the name box and the prize below it
+const BACKWARDS = [{ name: 'Gregmat Math Completion', type: 'done', prize: 'One Pair of Cutie Shoes', done: true }];
+const swapped = app.migrateRewards(BACKWARDS, app.REWARDS_VERSION);
+check('the prize moves into the name', swapped.rewards[0].name, 'One Pair of Cutie Shoes');
+check('the milestone becomes the condition', swapped.rewards[0].milestone, 'Gregmat Math Completion');
+check('the old prize field is dropped', swapped.rewards[0].prize, undefined);
+check('a completed milestone stays completed', swapped.rewards[0].done, true);
+check('and the swap is reported', swapped.changed, true);
+check('swapping is not repeated', app.migrateRewards(swapped.rewards, app.REWARDS_VERSION).changed, false);
+check('the input is not mutated', BACKWARDS[0].name, 'Gregmat Math Completion');
 
 const again = app.migrateRewards(m.rewards, m.version);
 check('running it twice changes nothing', again.changed, false);
