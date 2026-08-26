@@ -213,7 +213,7 @@
     redemption. The last two are not tied to points at all. The dinner turns on the GRE score
     itself — enter it once it's back, where 160 or better earns a Michelin recommended restaurant
     and 165 or better makes it a one-star. The shoes are marked done when Gregmat's math section
-    is finished.</div>
+    is finished — two pairs if that happens by October 1, one pair after.</div>
     <div id="rewardsList"></div>
   </div>
 
@@ -324,11 +324,12 @@ const DEFAULT_REWARDS = [
   // Not points thresholds. The dinner turns on the GRE score itself; the shoes
   // turn on finishing Gregmat's math section, which is just marked done.
   { name: 'Michelin dinner', type: 'score', score: null },
-  { name: 'One Pair of Cutie Shoes', type: 'done', milestone: 'Gregmat Math Completion', done: false }
+  { name: 'Cutie Shoes', type: 'done', milestone: 'Gregmat math', deadline: '2026-10-01',
+    onTime: 'Two pairs', late: 'One pair', done: false, doneOn: null }
 ];
 
 // Bumped whenever the default targets change, so each device migrates once.
-const REWARDS_VERSION = 5;
+const REWARDS_VERSION = 6;
 
 // Section scores run 130 to 170. Highest matching tier wins.
 const GRE_MIN = 130, GRE_MAX = 170;
@@ -473,6 +474,18 @@ function migrateRewards(rewards, version) {
     return swapped;
   });
 
+  // The shoes gained a deadline, and with it a prize that is one thing or two
+  // depending on the finish date. Fill those fields in on a saved copy.
+  out = out.map(r => {
+    if (r.type !== 'done' || r.deadline) return r;
+    changed = true;
+    const def = DEFAULT_REWARDS.filter(d => d.type === 'done')[0] || {};
+    const next = Object.assign({}, r, { deadline: def.deadline, onTime: def.onTime, late: def.late });
+    if (r.name === 'One Pair of Cutie Shoes') next.name = def.name;
+    if (next.doneOn === undefined) next.doneOn = null;
+    return next;
+  });
+
   // Any non-threshold reward the saved list is missing gets added, so a device
   // that predates one of them picks it up without a reset.
   DEFAULT_REWARDS.filter(d => d.type).forEach(d => {
@@ -521,6 +534,21 @@ function save() {
 function fmtDateShort(dateStr) {
   return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 }
+function fmtDayMonth(dateStr) {
+  if (!dateStr) return '';
+  return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+// Two pairs if the section is finished by the deadline, one after it. Dates are
+// ISO strings, so comparing them as text is the same as comparing the days.
+function donePrize(r) {
+  const onTime = r.onTime || 'Two pairs';
+  const late = r.late || 'One pair';
+  if (!r.done) return onTime + ' if done by ' + fmtDayMonth(r.deadline) + ', ' + late.toLowerCase() + ' after';
+  if (!r.doneOn) return late;
+  return (r.deadline && r.doneOn <= r.deadline ? onTime : late) + ' — finished ' + fmtDayMonth(r.doneOn);
+}
+
 function fmtTime(t) {
   if (!t) return '—:—';
   const [h,m] = t.split(':').map(Number);
@@ -570,11 +598,12 @@ function renderRewards(total) {
       return '<div class="reward-row">' +
         '<div class="reward-row-top">' +
           '<input type="text" class="reward-name" data-idx="' + i + '" value="' + escapeHtml(r.name) + '">' +
+          '<div class="reward-target-wrap">' + escapeHtml(r.milestone || '') + '</div>' +
           '<button class="btn-ghost reward-done' + (r.done ? ' is-done' : '') + '" data-idx="' + i + '">' +
             (r.done ? '✓ done' : 'Mark done') +
           '</button>' +
         '</div>' +
-        '<div class="reward-line"><span>' + escapeHtml(r.milestone || 'Not tied to points') + '</span>' +
+        '<div class="reward-line"><span>' + escapeHtml(donePrize(r)) + '</span>' +
         '<span class="' + (r.done ? 'unlocked' : '') + '">' + (r.done ? '✓ unlocked' : 'not yet') + '</span></div>' +
       '</div>';
     }
@@ -620,6 +649,7 @@ function renderRewards(total) {
       const r = state.rewards[parseInt(e.currentTarget.dataset.idx)];
       if (r.done && !confirm('Mark "' + r.name + '" as not done yet?')) return;
       r.done = !r.done;
+      r.doneOn = r.done ? todayStr() : null;
       save(); render();
     });
   });

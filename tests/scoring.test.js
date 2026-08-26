@@ -1,7 +1,7 @@
 const { loadPure, runner, weekdaysEndingToday } = require('./helpers');
 const { check, done } = runner('scoring');
 
-const app = loadPure('state, recompute, wakePoints, questionPoints, roundHalf, fmtPts, tierMultiplier, dropOneTier, scoreLine, bandLabel, greTier, migrateRewards, DEFAULT_REWARDS, REWARDS_VERSION, setState: s => state = s');
+const app = loadPure('state, recompute, wakePoints, questionPoints, roundHalf, fmtPts, tierMultiplier, dropOneTier, scoreLine, bandLabel, greTier, donePrize, migrateRewards, DEFAULT_REWARDS, REWARDS_VERSION, setState: s => state = s');
 
 console.log('\nwake points — 9:00 is the baseline and still earns');
 check('06:00 -> 6', app.wakePoints('06:00'), 6);
@@ -96,9 +96,21 @@ check('with no target', score[0].target, undefined);
 check('and no score yet', score[0].score, null);
 const doneR = app.DEFAULT_REWARDS.filter(r => r.type === 'done');
 check('one completion reward', doneR.length, 1);
-check('named for the prize, like every other reward', doneR[0].name, 'One Pair of Cutie Shoes');
-check('with the milestone as its condition', doneR[0].milestone, 'Gregmat Math Completion');
+check('named for the prize, like every other reward', doneR[0].name, 'Cutie Shoes');
+check('with the milestone as its condition', doneR[0].milestone, 'Gregmat math');
 check('and no leftover prize field', doneR[0].prize, undefined);
+check('carrying the deadline', doneR[0].deadline, '2026-10-01');
+check('and no finish date yet', doneR[0].doneOn, null);
+
+console.log('\nthe shoes deadline');
+const shoes = extra => Object.assign({ name: 'Cutie Shoes', type: 'done', deadline: '2026-10-01', onTime: 'Two pairs', late: 'One pair', done: false, doneOn: null }, extra);
+check('unfinished, it states both outcomes', app.donePrize(shoes({})), 'Two pairs if done by Oct 1, one pair after');
+check('finished well before', app.donePrize(shoes({ done: true, doneOn: '2026-09-12' })), 'Two pairs — finished Sep 12');
+check('finished the day before', app.donePrize(shoes({ done: true, doneOn: '2026-09-30' })), 'Two pairs — finished Sep 30');
+check('finished on the deadline still counts', app.donePrize(shoes({ done: true, doneOn: '2026-10-01' })), 'Two pairs — finished Oct 1');
+check('finished the day after does not', app.donePrize(shoes({ done: true, doneOn: '2026-10-02' })), 'One pair — finished Oct 2');
+check('finished much later', app.donePrize(shoes({ done: true, doneOn: '2026-12-25' })), 'One pair — finished Dec 25');
+check('done with no date recorded falls back to one pair', app.donePrize(shoes({ done: true, doneOn: null })), 'One pair');
 check('starting undone', doneR[0].done, false);
 check('with no target', doneR[0].target, undefined);
 
@@ -125,8 +137,9 @@ check('as a score reward', scored.rewards[0].type, 'score');
 // The shoes first shipped with the milestone in the name box and the prize below it
 const BACKWARDS = [{ name: 'Gregmat Math Completion', type: 'done', prize: 'One Pair of Cutie Shoes', done: true }];
 const swapped = app.migrateRewards(BACKWARDS, app.REWARDS_VERSION);
-check('the prize moves into the name', swapped.rewards[0].name, 'One Pair of Cutie Shoes');
+check('the prize moves into the name', swapped.rewards[0].name, 'Cutie Shoes');
 check('the milestone becomes the condition', swapped.rewards[0].milestone, 'Gregmat Math Completion');
+check('and the deadline is filled in', swapped.rewards[0].deadline, '2026-10-01');
 check('the old prize field is dropped', swapped.rewards[0].prize, undefined);
 check('a completed milestone stays completed', swapped.rewards[0].done, true);
 check('and the swap is reported', swapped.changed, true);

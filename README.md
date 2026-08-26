@@ -67,15 +67,21 @@ down on a bad day is not a threshold. Two are not tied to points at all:
   earns a Michelin recommended restaurant, 165 or better a one-star, and anything under 160 stays
   locked while still showing what was scored. Scores are validated to the 130–170 section range,
   and the highest matching tier in `GRE_TIERS` wins, so another tier is one more entry.
-- `type: 'done'` — one pair of cutie shoes, for finishing Gregmat's math section. No threshold
-  and no score, just a button marking it finished. The prize is the `name`, like everywhere else,
-  and `milestone` holds the condition. Un-marking asks for confirmation so a stray tap does not
-  take it back.
+- `type: 'done'` — cutie shoes, for finishing Gregmat's math section. No threshold and no score,
+  just a button marking it finished, which records `doneOn`. How many pairs depends on that date:
+  `onTime` (two pairs) on or before `deadline`, `late` (one pair) after it. The deadline is
+  `2026-10-01` and finishing *on* the first still counts. `donePrize()` renders the line, and
+  because dates are ISO strings, comparing them as text compares the days. Un-marking clears the
+  date and asks for confirmation so a stray tap does not take it back.
+
+  Marking done stamps today. If she finishes on the 30th and only taps it on the 2nd, she loses
+  the bonus — the tier reads `doneOn`, so making that date editable later is a small change.
 
 Two shapes changed after shipping and are handled by the migration rather than left to rot: the
 dinner was `type: 'event'` when it was the only non-threshold reward, so it is renamed rather
 than duplicated; and the shoes first carried the milestone in `name` with the prize in `prize`,
-which read backwards against every other row, so those two are swapped.
+which read backwards against every other row, so those two are swapped and the deadline fields
+are filled in.
 
 Thresholds are 40, 75 and 200. At a typical 20 to 25 questions a day that lands them around
 weekday 5, 8 and 19; with no questions logged, weekday 5, 8 and 20; at 40 questions a day,
