@@ -68,7 +68,7 @@ function main() {
     scoring.setState({ entries, rewards: (state && state.rewards) || [] });
     const calc = scoring.recompute();
 
-    const gre = ((state && state.rewards) || []).find(r => r.type === 'event');
+    const gre = ((state && state.rewards) || []).find(r => r.type === 'score');
     const tier = gre ? scoring.greTier(gre.score) : null;
 
     return {

@@ -88,6 +88,8 @@
   .reward-line { display: flex; justify-content: space-between; font-size: 12px; color: rgba(246,242,233,0.6); margin-top: 6px; font-family: 'JetBrains Mono', monospace; }
   .reward-line .unlocked { color: var(--gold); font-weight: 700; }
   .reward-target-wrap .reward-score { width: 62px; }
+  .reward-row-top .reward-done { flex: 0 0 auto; }
+  .reward-done.is-done { border-color: var(--gold); color: var(--gold); }
 
   .hist-item {
     display: flex; justify-content: space-between; align-items: center; gap: 8px;
@@ -207,9 +209,10 @@
   <div class="card">
     <h2>Reward milestones</h2>
     <div class="subhead">These unlock permanently as the total climbs — nothing resets after a
-    redemption. The last one is not tied to points at all — it turns on the GRE score itself.
-    Enter that score once it's back: 160 or better earns a Michelin recommended restaurant, and
-    165 or better makes it a one-star.</div>
+    redemption. The last two are not tied to points at all. The dinner turns on the GRE score
+    itself — enter it once it's back, where 160 or better earns a Michelin recommended restaurant
+    and 165 or better makes it a one-star. The shoes are marked done when Gregmat's math section
+    is finished.</div>
     <div id="rewardsList"></div>
   </div>
 
@@ -317,13 +320,14 @@ const DEFAULT_REWARDS = [
   { name: 'Plushie', target: 40 },
   { name: 'Cactus dinner', target: 75 },
   { name: 'Aritzia outfit', target: 200 },
-  // Not a points threshold. This one lands on the GRE score itself, so it is
-  // resolved by entering that score rather than by any running total.
-  { name: 'Michelin dinner', type: 'event', score: null }
+  // Not points thresholds. The dinner turns on the GRE score itself; the shoes
+  // turn on finishing Gregmat's math section, which is just marked done.
+  { name: 'Michelin dinner', type: 'score', score: null },
+  { name: 'Gregmat Math Completion', type: 'done', prize: 'One Pair of Cutie Shoes', done: false }
 ];
 
 // Bumped whenever the default targets change, so each device migrates once.
-const REWARDS_VERSION = 3;
+const REWARDS_VERSION = 4;
 
 // Section scores run 130 to 170. Highest matching tier wins.
 const GRE_MIN = 130, GRE_MAX = 170;
@@ -449,13 +453,26 @@ function migrateRewards(rewards, version) {
   let out = rewards.slice();
   let changed = false;
 
-  if (!out.some(r => r.type === 'event')) {
-    out = out.concat(DEFAULT_REWARDS.filter(r => r.type === 'event').map(r => Object.assign({}, r)));
+  // The dinner shipped as type 'event' back when it was the only reward that
+  // was not a points threshold. Rename rather than append, or the check below
+  // would add a second dinner alongside it.
+  out = out.map(r => {
+    if (r.type !== 'event') return r;
     changed = true;
-  }
+    return Object.assign({}, r, { type: 'score' });
+  });
+
+  // Any non-threshold reward the saved list is missing gets added, so a device
+  // that predates one of them picks it up without a reset.
+  DEFAULT_REWARDS.filter(d => d.type).forEach(d => {
+    if (!out.some(r => r.type === d.type)) {
+      out = out.concat([Object.assign({}, d)]);
+      changed = true;
+    }
+  });
   if (version !== REWARDS_VERSION) {
     const bump = { 30: 40, 35: 40, 50: 75, 55: 75, 180: 200, 190: 200 };
-    out = out.map(r => (r.type !== 'event' && bump[r.target] !== undefined)
+    out = out.map(r => (!r.type && bump[r.target] !== undefined)
       ? Object.assign({}, r, { target: bump[r.target] })
       : r);
     version = REWARDS_VERSION;
@@ -538,7 +555,19 @@ function escapeHtml(s) {
 function renderRewards(total) {
   const list = document.getElementById('rewardsList');
   list.innerHTML = state.rewards.map((r, i) => {
-    if (r.type === 'event') {
+    if (r.type === 'done') {
+      return '<div class="reward-row">' +
+        '<div class="reward-row-top">' +
+          '<input type="text" class="reward-name" data-idx="' + i + '" value="' + escapeHtml(r.name) + '">' +
+          '<button class="btn-ghost reward-done' + (r.done ? ' is-done' : '') + '" data-idx="' + i + '">' +
+            (r.done ? '✓ done' : 'Mark done') +
+          '</button>' +
+        '</div>' +
+        '<div class="reward-line"><span>' + escapeHtml(r.prize || 'Not tied to points') + '</span>' +
+        '<span class="' + (r.done ? 'unlocked' : '') + '">' + (r.done ? '✓ unlocked' : 'not yet') + '</span></div>' +
+      '</div>';
+    }
+    if (r.type === 'score') {
       const tier = greTier(r.score);
       const scored = r.score !== null && r.score !== undefined && r.score !== '';
       let left;
@@ -572,6 +601,14 @@ function renderRewards(total) {
   list.querySelectorAll('.reward-name').forEach(inp => {
     inp.addEventListener('change', (e) => {
       state.rewards[parseInt(e.target.dataset.idx)].name = e.target.value;
+      save(); render();
+    });
+  });
+  list.querySelectorAll('.reward-done').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const r = state.rewards[parseInt(e.currentTarget.dataset.idx)];
+      if (r.done && !confirm('Mark "' + r.name + '" as not done yet?')) return;
+      r.done = !r.done;
       save(); render();
     });
   });

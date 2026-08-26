@@ -57,12 +57,19 @@ days 1–2 are 1.0x, days 3–6 are 1.25x, day 7 onward is 1.5x.
 (7+ becomes 4, 3–6 becomes 1, otherwise 0) rather than resetting to zero. Logging a weekend day
 extends the streak; skipping one costs nothing.
 
-**Rewards.** Most are point thresholds, editable in the app, and unlock permanently once the
-running total passes them. One is different: a reward carrying `type: 'event'` is not tied to
-points at all. That is the dinner, and it turns on the GRE score entered into it — 160 or better
-earns a Michelin recommended restaurant, 165 or better a one-star, and anything under 160 stays
-locked while still showing the score. Scores are validated to the 130–170 section range; the
-highest matching tier in `GRE_TIERS` wins, so adding a third tier means adding one entry.
+**Rewards.** A reward with no `type` is a point threshold, editable in the app, unlocking
+permanently once the running total passes it. Two are not tied to points at all:
+
+- `type: 'score'` — the Michelin dinner. It turns on the GRE score entered into it: 160 or better
+  earns a Michelin recommended restaurant, 165 or better a one-star, and anything under 160 stays
+  locked while still showing what was scored. Scores are validated to the 130–170 section range,
+  and the highest matching tier in `GRE_TIERS` wins, so another tier is one more entry.
+- `type: 'done'` — Gregmat Math Completion, whose prize is one pair of cutie shoes. It has no
+  threshold and no score, just a button marking it finished, with the prize named in `prize`.
+  Un-marking asks for confirmation so a stray tap does not take it back.
+
+The dinner originally shipped as `type: 'event'` when it was the only non-threshold reward. The
+migration renames it rather than appending a second one.
 
 Thresholds are 40, 75 and 200. At a typical 20 to 25 questions a day that lands them around
 weekday 5, 8 and 19; with no questions logged, weekday 5, 8 and 20; at 40 questions a day,
@@ -70,8 +77,9 @@ weekday 4, 7 and 17. They started at 30/50/180 and were raised once when questio
 and again to stretch the middle of the ladder out — the cactus dinner is the one that moved most,
 from about weekday 6 to 8.
 
-`migrateRewards()` handles the upgrades and is pure, so it can be tested on its own. Rewards saved
-before the dinner existed get it appended. Targets still sitting at any previously shipped default
+`migrateRewards()` handles the upgrades and is pure, so it can be tested on its own. Any
+non-threshold reward missing from a saved list is appended, so a device predating one of them
+picks it up without a reset. Targets still sitting at any previously shipped default
 are raised, gated on `state.rewardsVersion` against `REWARDS_VERSION`, so a device that skipped a
 version still lands on the current numbers in one step and an already-migrated device is left
 alone. That version is read back in `load()`; without that the migration would repeat on every
@@ -129,3 +137,18 @@ have killed the shared copy. KV entries are written with no expiry.
 - Dates are local-time strings (`YYYY-MM-DD` parsed with a `T00:00:00` suffix) to avoid UTC
   off-by-one errors.
 - The dial's arc path length is hardcoded to 377. Recompute it if the arc geometry changes.
+
+## Tests
+
+```bash
+node tests/run.js
+```
+
+Three suites: scoring (the wake ladder, questions, half points, streak tiers, the long-run
+totals and the reward migrations), sync merge (union, conflicts, tombstones), and field
+validation. No dependencies and no framework.
+
+They load the app's own functions straight out of `index.html` rather than reimplementing
+anything, so a change to the scoring that the tests do not know about fails them rather than
+passing quietly. Everything above `drawDial()` is free of DOM calls at parse time, which is the
+seam that makes this work — keep new pure logic above that line and it stays testable.
