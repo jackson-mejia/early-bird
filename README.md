@@ -83,15 +83,26 @@ than duplicated; and the shoes first carried the milestone in `name` with the pr
 which read backwards against every other row, so those two are swapped and the deadline fields
 are filled in.
 
-Thresholds are 40, 75 and 200. At a typical 20 to 25 questions a day that lands them around
-weekday 5, 8 and 19; with no questions logged, weekday 5, 8 and 20; at 40 questions a day,
-weekday 4, 7 and 17. They started at 30/50/180 and were raised once when questions began earning
-and again to stretch the middle of the ladder out — the cactus dinner is the one that moved most,
+Thresholds are 40, 75, 200 and 400. At a typical 20 to 25 questions a day that lands them around
+weekday 5, 8, 19 and 36; with no questions logged, weekday 5, 8, 20 and 39; at 40 questions a day,
+weekday 4, 7, 17 and 33. The first three started at 30/50/180 and were raised once when questions
+began earning and again to stretch the middle of the ladder out — the cactus dinner moved most,
 from about weekday 6 to 8.
 
+`tools/pacing.js` prints that table from the live scoring and the live targets, so a change to a
+threshold is a decision rather than a guess:
+
+```bash
+node tools/pacing.js            # 6:45 wake, 40 min study
+node tools/pacing.js 07:15 20   # a later wake and a shorter session
+```
+
 `migrateRewards()` handles the upgrades and is pure, so it can be tested on its own. Any
-non-threshold reward missing from a saved list is appended, so a device predating one of them
-picks it up without a reset. Targets still sitting at any previously shipped default
+non-threshold reward missing from a saved list is appended, matched on `type`. A missing
+threshold is appended too, matched on `target` — reliable precisely because targets are fixed in
+code, so a renamed reward is never duplicated. The list is then sorted into thresholds climbing,
+then the dinner, then the completion milestone, since an append would otherwise leave a new
+threshold sitting below them. Targets still sitting at any previously shipped default
 are raised, gated on `state.rewardsVersion` against `REWARDS_VERSION`, so a device that skipped a
 version still lands on the current numbers in one step and an already-migrated device is left
 alone. That version is read back in `load()`; without that the migration would repeat on every

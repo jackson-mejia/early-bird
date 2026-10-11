@@ -321,6 +321,7 @@ const DEFAULT_REWARDS = [
   { name: 'Plushie', target: 40 },
   { name: 'Cactus dinner', target: 75 },
   { name: 'Aritzia outfit', target: 200 },
+  { name: 'Cute Pajamas', target: 400 },
   // Not points thresholds. The dinner turns on the GRE score itself; the shoes
   // turn on finishing Gregmat's math section, which is just marked done.
   { name: 'Michelin dinner', type: 'score', score: null },
@@ -329,7 +330,7 @@ const DEFAULT_REWARDS = [
 ];
 
 // Bumped whenever the default targets change, so each device migrates once.
-const REWARDS_VERSION = 6;
+const REWARDS_VERSION = 7;
 
 // Section scores run 130 to 170. Highest matching tier wins.
 const GRE_MIN = 130, GRE_MAX = 170;
@@ -499,6 +500,20 @@ function migrateRewards(rewards, version) {
     out = out.map(r => (!r.type && bump[r.target] !== undefined)
       ? Object.assign({}, r, { target: bump[r.target] })
       : r);
+
+    // A newly added threshold is appended once per version. Targets are fixed
+    // in code and not editable, so matching on target is reliable and a
+    // renamed reward is never duplicated.
+    DEFAULT_REWARDS.filter(d => !d.type).forEach(d => {
+      if (!out.some(r => !r.type && r.target === d.target)) out = out.concat([Object.assign({}, d)]);
+    });
+
+    // Keep a predictable order — thresholds climbing, then the GRE dinner,
+    // then the completion milestone — since an append would otherwise leave a
+    // new threshold sitting below them. Nothing in the app reorders by hand.
+    const rank = r => (r.type === 'done' ? 3 : r.type === 'score' ? 2 : 1);
+    out = out.slice().sort((a, b) => rank(a) - rank(b) || (a.target || 0) - (b.target || 0));
+
     version = REWARDS_VERSION;
     changed = true;
   }

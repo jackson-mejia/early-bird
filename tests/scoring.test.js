@@ -90,6 +90,8 @@ console.log('\nreward defaults');
 check('plushie', app.DEFAULT_REWARDS[0].target, 40);
 check('cactus dinner', app.DEFAULT_REWARDS[1].target, 75);
 check('aritzia outfit', app.DEFAULT_REWARDS[2].target, 200);
+check('cute pajamas', app.DEFAULT_REWARDS[3].target, 400);
+check('thresholds climb', app.DEFAULT_REWARDS.filter(r => !r.type).map(r => r.target), [40, 75, 200, 400]);
 const score = app.DEFAULT_REWARDS.filter(r => r.type === 'score');
 check('one score reward', score.length, 1);
 check('with no target', score[0].target, undefined);
@@ -129,7 +131,8 @@ const mid = app.migrateRewards(MID, 2);
 check('a device on the previous defaults catches up', mid.rewards.slice(0, 3).map(r => r.target).join('/'), '40/75/200');
 check("the old 'event' dinner is renamed, not duplicated", mid.rewards.filter(r => r.type === 'score').length, 1);
 check('the shoes join it', mid.rewards.filter(r => r.type === 'done').length, 1);
-check('leaving five rewards', mid.rewards.length, 5);
+check('and the pajamas too', mid.rewards.filter(r => r.target === 400).length, 1);
+check('leaving six rewards', mid.rewards.length, 6);
 
 const scored = app.migrateRewards([{ name: 'Michelin dinner', type: 'event', score: 166 }], app.REWARDS_VERSION);
 check('an entered score survives the rename', scored.rewards[0].score, 166);
@@ -145,6 +148,20 @@ check('a completed milestone stays completed', swapped.rewards[0].done, true);
 check('and the swap is reported', swapped.changed, true);
 check('swapping is not repeated', app.migrateRewards(swapped.rewards, app.REWARDS_VERSION).changed, false);
 check('the input is not mutated', BACKWARDS[0].name, 'Gregmat Math Completion');
+
+// A saved list predating a threshold picks it up, in the right place
+const NO_PJS = [{ name: 'Plushie', target: 40 }, { name: 'Cactus dinner', target: 75 }, { name: 'Aritzia outfit', target: 200 },
+  { name: 'Michelin dinner', type: 'score', score: null },
+  { name: 'Cutie Shoes', type: 'done', milestone: 'Gregmat math', deadline: '2026-10-01', onTime: 'Two pairs', late: 'One pair', done: false, doneOn: null }];
+const withPjs = app.migrateRewards(NO_PJS, 6);
+check('the pajamas are added', withPjs.rewards.filter(r => r.target === 400).length, 1);
+check('thresholds stay in order', withPjs.rewards.filter(r => !r.type).map(r => r.target), [40, 75, 200, 400]);
+check('and sort above the non-threshold rewards', withPjs.rewards.map(r => r.type || 'threshold'),
+  ['threshold', 'threshold', 'threshold', 'threshold', 'score', 'done']);
+check('nothing is duplicated', withPjs.rewards.length, 6);
+check('the input is not mutated', NO_PJS.length, 5);
+check('a renamed threshold is not re-added', app.migrateRewards(
+  [{ name: 'Fuzzy socks', target: 400 }], 6).rewards.filter(r => r.target === 400).length, 1);
 
 const again = app.migrateRewards(m.rewards, m.version);
 check('running it twice changes nothing', again.changed, false);
